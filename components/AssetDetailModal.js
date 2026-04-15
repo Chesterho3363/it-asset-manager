@@ -93,6 +93,16 @@ export default function AssetDetailModal({ asset, onClose }) {
             )}
           </div>
 
+          {/* ── 新增：取得日資訊 ── */}
+          {asset.acquisitionDate && (
+            <div>
+              <SectionTitle icon={Calendar} title={t("取得資訊", "Acquisition")} />
+              <div style={{ background: "var(--bg-elevated)", padding: "0.75rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "0.85rem", color: "var(--text-primary)" }}>
+                📅 {t("取得日期", "Acquisition Date")}: <span style={{ fontFamily: "var(--font-mono)" }}>{asset.acquisitionDate}</span>
+              </div>
+            </div>
+          )}
+
           {/* Issue / DOE Tracking */}
           {(asset.issueId || asset.doe) && (
             <div>

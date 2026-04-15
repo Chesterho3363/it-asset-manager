@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { getAssetById, updateAsset, deleteAsset } from "@/lib/notion";
 
-// ─── PATCH /api/assets/[id] ───────────────────────────────────────────────────
+// ─── PATCH /api/assets/[id] (更新資產) ───────────────────────────────────────────
 export async function PATCH(request, { params }) {
   try {
+    // 在 Next.js App Router 中，params 通常需要 await
     const { id } = await params;
 
     if (!id) {
@@ -22,6 +23,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
+    // ── 修正：擴充允許更新的欄位清單，包含所有新功能欄位 ──
     const allowedFields = [
       "assetCode",
       "model",
@@ -29,12 +31,17 @@ export async function PATCH(request, { params }) {
       "status",
       "borrower",
       "returnDate",
+      "acquisitionDate", // 新增：資產取得日
+      "issueId",         // 新增：Issue ID
+      "doe",             // 新增：DOE
       "note",
     ];
+
     const filteredBody = Object.fromEntries(
       Object.entries(body).filter(([key]) => allowedFields.includes(key))
     );
 
+    // ── 合法值驗證 (維持原有的安全機制) ──
     const validCategories = ["laptop", "monitor", "docking", "other"];
     if (
       filteredBody.category !== undefined &&
@@ -42,10 +49,7 @@ export async function PATCH(request, { params }) {
       !validCategories.includes(filteredBody.category)
     ) {
       return NextResponse.json(
-        {
-          success: false,
-          error: `category 必須為以下其一：${validCategories.join(", ")}`,
-        },
+        { success: false, error: `category 必須為以下其一：${validCategories.join(", ")}` },
         { status: 400 }
       );
     }
@@ -57,14 +61,12 @@ export async function PATCH(request, { params }) {
       !validStatuses.includes(filteredBody.status)
     ) {
       return NextResponse.json(
-        {
-          success: false,
-          error: `status 必須為以下其一：${validStatuses.join(", ")}`,
-        },
+        { success: false, error: `status 必須為以下其一：${validStatuses.join(", ")}` },
         { status: 400 }
       );
     }
 
+    // 先確認該資產是否存在
     try {
       await getAssetById(id);
     } catch {
@@ -74,6 +76,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
+    // 呼叫更新功能
     const updatedAsset = await updateAsset(id, filteredBody);
 
     return NextResponse.json(
@@ -96,7 +99,7 @@ export async function PATCH(request, { params }) {
   }
 }
 
-// ─── DELETE /api/assets/[id] ──────────────────────────────────────────────────
+// ─── DELETE /api/assets/[id] (刪除資產) ──────────────────────────────────────────
 export async function DELETE(request, { params }) {
   try {
     const { id } = await params;

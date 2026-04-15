@@ -116,16 +116,19 @@ export default function AssetForm({ onClose, onSuccess, editData = null }) {
   const isEdit = !!editData;
   const { text: initNote, specs: initSpecs } = parseSpecs(editData?.note);
 
+  // ── 修正：加入 acquisitionDate，並確保日期格式乾淨 (切除時間 T 之後的字元) ──
   const [form, setForm] = useState({
-    assetCode:  editData?.assetCode  || "",
-    model:      editData?.model      || "",
-    category:   editData?.category   || "laptop",
-    status:     editData?.status     || "available",
-    borrower:   editData?.borrower   || "",
-    returnDate: editData?.returnDate || "",
-    issueId:    editData?.issueId    || "",
-    doe:        editData?.doe        || "",
+    assetCode:       editData?.assetCode       || "",
+    model:           editData?.model           || "",
+    category:        editData?.category        || "laptop",
+    status:          editData?.status          || "available",
+    borrower:        editData?.borrower        || "",
+    returnDate:      editData?.returnDate      ? editData.returnDate.split("T")[0] : "",
+    issueId:         editData?.issueId         || "",
+    doe:             editData?.doe             || "",
+    acquisitionDate: editData?.acquisitionDate ? editData.acquisitionDate.split("T")[0] : "", 
   });
+  
   const [noteText, setNoteText] = useState(initNote);
   const [specs, setSpecs] = useState(initSpecs);
   const [loading, setLoading] = useState(false);
@@ -182,7 +185,7 @@ export default function AssetForm({ onClose, onSuccess, editData = null }) {
         {/* Body */}
         <div style={{ padding: "1.25rem 1.5rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
 
-          {/* 資產編號 + 型號 */}
+          {/* 資產編號 + 型號 + 取得日 */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
             <div>
               <label style={labelStyle}>{t("資產編號", "Asset Code")} *</label>
@@ -193,6 +196,13 @@ export default function AssetForm({ onClose, onSuccess, editData = null }) {
             <div>
               <label style={labelStyle}>{t("型號", "Model")}</label>
               <input style={inputStyle} value={form.model} onChange={set("model")} placeholder="MacBook Pro 14"
+                onFocus={e => e.target.style.borderColor = "var(--border-focus)"}
+                onBlur={e => e.target.style.borderColor = "var(--border)"} />
+            </div>
+            {/* ── 修正：新增取得日期輸入區塊 ── */}
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>{t("資產取得日", "Acquisition Date")}</label>
+              <input type="date" style={inputStyle} value={form.acquisitionDate} onChange={set("acquisitionDate")}
                 onFocus={e => e.target.style.borderColor = "var(--border-focus)"}
                 onBlur={e => e.target.style.borderColor = "var(--border)"} />
             </div>
@@ -239,7 +249,7 @@ export default function AssetForm({ onClose, onSuccess, editData = null }) {
             </div>
           )}
 
-          {/* Issue ID + DOE（螢光筆樣式區塊） */}
+          {/* Issue ID + DOE */}
           <div style={{ background: "#fef9c322", border: "1px solid #fef08a", borderRadius: "10px", padding: "0.875rem" }}>
             <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#a16207", letterSpacing: "0.08em", marginBottom: "0.75rem" }}>
               🔬 {t("實驗 / Issue 追蹤", "Lab / Issue Tracking")}

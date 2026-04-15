@@ -135,7 +135,6 @@ function StatCard({ label, value, icon: Icon, color, isActive }) {
   );
 }
 
-// ── 新增：高質感自訂下拉選單 ──────────────────────────────────────────────────
 function CustomSelect({ value, onChange, options, style }) {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef(null);
@@ -265,6 +264,7 @@ export default function HomePage() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
+  const [sortBy, setSortBy] = useState("assetCode"); // ── 新增排序狀態 ──
   const [showForm, setShowForm] = useState(false);
   const [editAsset, setEditAsset] = useState(null);
   const [returningId, setReturningId] = useState(null);
@@ -306,13 +306,30 @@ export default function HomePage() {
     return matchSearch && (filterStatus === "all" || a.status === filterStatus) && (filterCategory === "all" || a.category === filterCategory);
   });
 
+  // ── 新增：自訂排序邏輯 ──
+  const sortedAndFiltered = [...filtered].sort((a, b) => {
+    if (sortBy === "assetCode") {
+      return (a.assetCode || "").localeCompare(b.assetCode || "");
+    }
+    if (sortBy === "model") {
+      return (a.model || "").localeCompare(b.model || "");
+    }
+    if (sortBy === "date_desc") {
+      return new Date(b.acquisitionDate || 0) - new Date(a.acquisitionDate || 0);
+    }
+    if (sortBy === "date_asc") {
+      return new Date(a.acquisitionDate || 0) - new Date(b.acquisitionDate || 0);
+    }
+    return 0;
+  });
+
   const total = assets.length;
   const available = assets.filter(a => a.status === "available").length;
   const borrowed  = assets.filter(a => a.status === "borrowed").length;
   const overdueCount = assets.filter(a => isAssetOverdue(a.status, a.returnDate)).length;
 
   const btnBase = { display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.6rem 1.1rem", border: "none", borderRadius: "8px", fontSize: "0.85rem", fontFamily: "var(--font-display)", cursor: "pointer", fontWeight: 500 };
-  const selStyle = { padding: "0.55rem 0.875rem", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-secondary)", fontSize: "0.8rem", fontFamily: "var(--font-display)", cursor: "pointer", outline: "none" };
+  const selStyle = { padding: "0.55rem 0.875rem", background: "var(--danger-soft)", border: "1px solid var(--danger)", borderRadius: "8px", color: "var(--danger)", fontSize: "0.8rem", fontFamily: "var(--font-display)", cursor: "pointer", outline: "none" };
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-base)", paddingBottom: isMobile ? "80px" : 0 }}>
@@ -357,8 +374,8 @@ export default function HomePage() {
               onFocus={e => e.target.style.borderColor = "var(--border-focus)"}
               onBlur={e => e.target.style.borderColor = "var(--border)"} />
           </div>
-          <div style={{ display: "flex", gap: "0.6rem" }}>
-            {/* ── 替換為自訂下拉選單 ── */}
+          
+          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
             <CustomSelect 
               value={filterStatus} 
               onChange={setFilterStatus} 
@@ -366,9 +383,9 @@ export default function HomePage() {
                 { value: "all", label: t("全部狀態", "All Status") },
                 { value: "available", label: t("可借用", "Available") },
                 { value: "borrowed", label: t("借出中", "Borrowed") },
-                { value: "overdue", label: t("逾期", "Overdue") }
+                { value: "overdue", label: t("🔴 逾期", "Overdue") }
               ]} 
-              style={{ flex: 1 }} 
+              style={{ flex: 1, minWidth: "120px" }} 
             />
             <CustomSelect 
               value={filterCategory} 
@@ -380,10 +397,24 @@ export default function HomePage() {
                 { value: "docking", label: t("擴充座", "Docking") },
                 { value: "other", label: t("其他", "Other") }
               ]} 
-              style={{ flex: 1 }} 
+              style={{ flex: 1, minWidth: "120px" }} 
             />
-            {(filterStatus !== "all" || filterCategory !== "all" || search) && (
-              <button onClick={() => { setSearch(""); setFilterStatus("all"); setFilterCategory("all"); }} style={{ ...selStyle, background: "var(--danger-soft)", borderColor: "var(--danger)", color: "var(--danger)", whiteSpace: "nowrap" }}>{t("清除", "Clear")}</button>
+            
+            {/* ── 新增：排序選項下拉選單 ── */}
+            <CustomSelect 
+              value={sortBy} 
+              onChange={setSortBy} 
+              options={[
+                { value: "assetCode", label: t("依編號排序", "Sort by Code") },
+                { value: "model", label: t("依型號排序 (A-Z)", "Sort by Model") },
+                { value: "date_desc", label: t("取得日：新 ➔ 舊", "Date: Newest") },
+                { value: "date_asc", label: t("取得日：舊 ➔ 新", "Date: Oldest") }
+              ]} 
+              style={{ flex: 1, minWidth: "140px" }} 
+            />
+
+            {(filterStatus !== "all" || filterCategory !== "all" || search || sortBy !== "assetCode") && (
+              <button onClick={() => { setSearch(""); setFilterStatus("all"); setFilterCategory("all"); setSortBy("assetCode"); }} style={{ ...selStyle, whiteSpace: "nowrap" }}>{t("清除", "Clear")}</button>
             )}
           </div>
         </div>
@@ -393,14 +424,14 @@ export default function HomePage() {
             <RefreshCw size={24} style={{ animation: "spin 1s linear infinite", margin: "0 auto 0.75rem", display: "block" }} />
             <div style={{ fontSize: "0.85rem" }}>{t("載入中...", "Loading...")}</div>
           </div>
-        ) : filtered.length === 0 ? (
+        ) : sortedAndFiltered.length === 0 ? (
           <div style={{ padding: "4rem", textAlign: "center", color: "var(--text-muted)" }}>
             <Package size={36} style={{ margin: "0 auto 0.75rem", opacity: 0.4, display: "block" }} />
             <div style={{ fontSize: "0.9rem" }}>{t("找不到資產", "No assets found")}</div>
           </div>
         ) : isMobile ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {filtered.map(asset => (
+            {sortedAndFiltered.map(asset => (
               <AssetCard key={asset.id} asset={asset} t={t}
                 onView={setViewAsset}
                 onEdit={a => { setEditAsset(a); setShowForm(true); }}
@@ -408,7 +439,7 @@ export default function HomePage() {
                 returning={returningId === asset.id} />
             ))}
             <div style={{ textAlign: "center", fontSize: "0.75rem", color: "var(--text-muted)", padding: "0.5rem" }}>
-              {t(`顯示 ${filtered.length} / ${total} 筆`, `Showing ${filtered.length} of ${total}`)}
+              {t(`顯示 ${sortedAndFiltered.length} / ${total} 筆`, `Showing ${sortedAndFiltered.length} of ${total}`)}
             </div>
           </div>
         ) : (
@@ -422,7 +453,7 @@ export default function HomePage() {
                 </tr>
               </thead>
               <tbody className="stagger">
-                {filtered.map(asset => {
+                {sortedAndFiltered.map(asset => {
                   const { text: noteText } = parseSpecs(asset.note);
                   const overdue = isAssetOverdue(asset.status, asset.returnDate);
                   return (
@@ -470,7 +501,7 @@ export default function HomePage() {
               </tbody>
             </table>
             <div style={{ padding: "0.75rem 1rem", borderTop: "1px solid var(--border)", fontSize: "0.75rem", color: "var(--text-muted)" }}>
-              {t(`顯示 ${filtered.length} / ${total} 筆`, `Showing ${filtered.length} of ${total}`)}
+              {t(`顯示 ${sortedAndFiltered.length} / ${total} 筆`, `Showing ${sortedAndFiltered.length} of ${total}`)}
             </div>
           </div>
         )}
