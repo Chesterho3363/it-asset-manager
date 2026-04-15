@@ -1,9 +1,6 @@
 "use client";
 import { useState, createContext, useContext, useEffect } from "react";
-import { Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 // ─── Global Context ───────────────────────────────────────────────────────────
 export const AppContext = createContext({
@@ -43,7 +40,7 @@ export default function RootLayout({ children }) {
 
   return (
     <html lang={lang} data-theme={theme} suppressHydrationWarning>
-      <body className={`${geistMono.variable} antialiased`} suppressHydrationWarning>
+      <body className="antialiased" suppressHydrationWarning>
         <AppContext.Provider value={{ theme, toggleTheme, lang, toggleLang, t }}>
           {children}
         </AppContext.Provider>

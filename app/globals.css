@@ -1,56 +1,64 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap');
 
 @import "tailwindcss";
 
 :root {
-  --font-display: 'Syne', sans-serif;
-  --font-mono: 'DM Mono', monospace;
+  /* 主要字體：英文 Inter + 中文思源黑體 */
+  --font-display: 'Inter', 'Noto Sans TC', sans-serif;
+  
+  /* 等寬字體：保留英文等寬特性，並在後方補上 'Noto Sans TC' 拯救中文字元 */
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Noto Sans TC', monospace;
 }
-
-/* ── Dark Theme (default) ── */
+/* ── 深色主題 (沉穩深灰質感) ── */
 [data-theme="dark"] {
-  --bg-base:      #0a0a0f;
-  --bg-surface:   #12121a;
-  --bg-elevated:  #1a1a26;
-  --bg-hover:     #22223a;
-  --border:       #2a2a3d;
-  --border-focus: #5b5bff;
-  --text-primary: #e8e8f0;
-  --text-secondary: #8888aa;
-  --text-muted:   #55556a;
-  --accent:       #5b5bff;
-  --accent-soft:  #5b5bff22;
-  --success:      #22c55e;
-  --success-soft: #22c55e22;
-  --warning:      #f59e0b;
-  --warning-soft: #f59e0b22;
-  --danger:       #ef4444;
-  --danger-soft:  #ef444422;
-  --shadow:       0 4px 24px rgba(0,0,0,0.4);
-  --shadow-lg:    0 8px 48px rgba(0,0,0,0.6);
+  --bg-base:      #0a0a0a;
+  --bg-surface:   #121212;
+  --bg-elevated:  #1e1e1e;
+  --bg-hover:     #262626;
+  --border:       #27272a;
+  --border-focus: #52525b;
+  --text-primary: #ededed;
+  --text-secondary: #a1a1aa;
+  --text-muted:   #71717a;
+  
+  /* 沉穩的高階色調 */
+  --accent:       #fafafa;      /* 深色模式下的強調色改為純白，極簡洗鍊 */
+  --accent-soft:  #27272a;
+  --success:      #10b981;      /* 柔和的翡翠綠 */
+  --success-soft: #10b9811a;
+  --warning:      #f59e0b;      /* 溫潤的琥珀色 */
+  --warning-soft: #f59e0b1a;
+  --danger:       #ef4444;      /* 內斂的珊瑚紅 */
+  --danger-soft:  #ef44441a;
+  
+  --shadow:       0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-lg:    0 12px 40px rgba(0, 0, 0, 0.6);
 }
 
-/* ── Light Theme ── */
+/* ── 淺色主題 (純淨呼吸感) ── */
 [data-theme="light"] {
-  --bg-base:      #f0f0f8;
+  --bg-base:      #fcfcfc;
   --bg-surface:   #ffffff;
-  --bg-elevated:  #f8f8ff;
-  --bg-hover:     #ededf8;
-  --border:       #ddddf0;
-  --border-focus: #5b5bff;
-  --text-primary: #0a0a1a;
-  --text-secondary: #55557a;
-  --text-muted:   #9999bb;
-  --accent:       #5b5bff;
-  --accent-soft:  #5b5bff18;
-  --success:      #16a34a;
-  --success-soft: #16a34a18;
+  --bg-elevated:  #f4f4f5;
+  --bg-hover:     #f4f4f5;
+  --border:       #e4e4e7;
+  --border-focus: #a1a1aa;
+  --text-primary: #171717;
+  --text-secondary: #52525b;
+  --text-muted:   #a1a1aa;
+  
+  /* 沉穩的高階色調 */
+  --accent:       #171717;      /* 淺色模式下的強調色改為極黑，打造黑白極簡風 */
+  --accent-soft:  #f4f4f5;
+  --success:      #059669;
+  --success-soft: #05966915;
   --warning:      #d97706;
-  --warning-soft: #d9770618;
+  --warning-soft: #d9770615;
   --danger:       #dc2626;
-  --danger-soft:  #dc262618;
-  --shadow:       0 4px 24px rgba(0,0,0,0.08);
-  --shadow-lg:    0 8px 48px rgba(0,0,0,0.12);
+  --danger-soft:  #dc262615;
+  
+  --shadow:       0 2px 10px rgba(0, 0, 0, 0.04);
+  --shadow-lg:    0 10px 30px rgba(0, 0, 0, 0.08);
 }
 
 * {
@@ -66,46 +74,48 @@ html {
 body {
   background-color: var(--bg-base);
   color: var(--text-primary);
-  font-family: var(--font-mono);
+  font-family: var(--font-display); /* 全局套用乾淨的黑體 */
   transition: background-color 0.3s ease, color 0.3s ease;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased; /* 讓字體在 Mac/iOS 上渲染更銳利高質感 */
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Scrollbar ── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--bg-base); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+/* ── 滾動條美化 (極簡化) ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-/* ── Selection ── */
-::selection { background: var(--accent-soft); color: var(--accent); }
+/* ── 文字選取顏色 ── */
+::selection { background: var(--text-muted); color: var(--bg-base); }
 
-/* ── Animations ── */
+/* ── 動畫 ── */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateX(-12px); }
+  from { opacity: 0; transform: translateX(-8px); }
   to   { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes pulse-soft {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.6; }
+  50%       { opacity: 0.5; }
 }
 
-.animate-fade-in { animation: fadeIn 0.4s ease forwards; }
-.animate-slide-in { animation: slideIn 0.3s ease forwards; }
-.animate-pulse-soft { animation: pulse-soft 2s ease infinite; }
+.animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-slide-in { animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
 
-/* ── Stagger children ── */
-.stagger > * { opacity: 0; animation: fadeIn 0.4s ease forwards; }
-.stagger > *:nth-child(1) { animation-delay: 0.05s; }
-.stagger > *:nth-child(2) { animation-delay: 0.1s; }
-.stagger > *:nth-child(3) { animation-delay: 0.15s; }
-.stagger > *:nth-child(4) { animation-delay: 0.2s; }
-.stagger > *:nth-child(5) { animation-delay: 0.25s; }
-.stagger > *:nth-child(6) { animation-delay: 0.3s; }
-.stagger > *:nth-child(n+7) { animation-delay: 0.35s; }
+/* ── 骨架屏與列表延遲動畫 ── */
+.stagger > * { opacity: 0; animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.stagger > *:nth-child(1) { animation-delay: 0.03s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.09s; }
+.stagger > *:nth-child(4) { animation-delay: 0.12s; }
+.stagger > *:nth-child(5) { animation-delay: 0.15s; }
+.stagger > *:nth-child(6) { animation-delay: 0.18s; }
+.stagger > *:nth-child(n+7) { animation-delay: 0.2s; }

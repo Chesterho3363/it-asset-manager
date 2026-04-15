@@ -1,11 +1,12 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
-import { Plus, RefreshCw, Pencil, Laptop, Monitor, Plug, Package, CheckCircle2, Clock, Search, Undo2, QrCode } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Plus, RefreshCw, Pencil, Laptop, Monitor, Plug, Package, CheckCircle2, Clock, Search, Undo2, QrCode, AlertCircle, ChevronDown } from "lucide-react";
 import Navbar from "../components/Navbar";
 import BottomNav from "../components/BottomNav";
 import AssetForm from "../components/AssetForm";
 import QRModal from "../components/QRModal";
 import { useApp } from "./layout";
+import AssetDetailModal from "../components/AssetDetailModal";
 
 const categoryMeta = {
   laptop:  { icon: Laptop,  colorVar: "--accent",     label: ["筆電", "Laptop"] },
@@ -23,12 +24,39 @@ function parseSpecs(noteStr) {
   } catch { return { text: noteStr, specs: {} }; }
 }
 
-function StatusBadge({ status, t }) {
-  const ok = status === "available";
+function isAssetOverdue(status, returnDate) {
+  if (status !== "borrowed" || !returnDate) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const returnD = new Date(returnDate);
+  return returnD < today;
+}
+
+function StatusBadge({ status, returnDate, t }) {
+  const overdue = isAssetOverdue(status, returnDate);
+
+  if (status === "available") {
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", padding: "0.25rem 0.65rem", background: "var(--success-soft)", borderRadius: "999px", color: "var(--success)", fontSize: "0.72rem", fontWeight: 500 }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--success)", flexShrink: 0 }} />
+        {t("可借用", "Available")}
+      </span>
+    );
+  }
+
+  if (overdue) {
+    return (
+      <span className="animate-pulse-soft" style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", padding: "0.25rem 0.65rem", background: "var(--danger-soft)", borderRadius: "999px", color: "var(--danger)", fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.02em" }}>
+        <AlertCircle size={12} strokeWidth={2.5} />
+        {t("已逾期", "Overdue")}
+      </span>
+    );
+  }
+
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", padding: "0.25rem 0.65rem", background: ok ? "var(--success-soft)" : "var(--warning-soft)", borderRadius: "999px", color: ok ? "var(--success)" : "var(--warning)", fontSize: "0.72rem", fontWeight: 500 }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: ok ? "var(--success)" : "var(--warning)", flexShrink: 0 }} />
-      {ok ? t("可借用", "Available") : t("借出中", "Borrowed")}
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", padding: "0.25rem 0.65rem", background: "var(--warning-soft)", borderRadius: "999px", color: "var(--warning)", fontSize: "0.72rem", fontWeight: 500 }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--warning)", flexShrink: 0 }} />
+      {t("借出中", "Borrowed")}
     </span>
   );
 }
@@ -43,17 +71,10 @@ function CategoryBadge({ category, t }) {
   );
 }
 
-// ── Issue / DOE 螢光筆 Tag ──────────────────────────────────────────────────────
 function IssueBadge({ issueId }) {
   if (!issueId) return null;
   return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: "0.3rem",
-      padding: "0.2rem 0.55rem",
-      background: "#fef08a", color: "#92400e",
-      borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700,
-      letterSpacing: "0.04em",
-    }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", padding: "0.2rem 0.55rem", background: "#fef08a", color: "#92400e", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.04em" }}>
       🔖 {issueId}
     </span>
   );
@@ -62,12 +83,7 @@ function IssueBadge({ issueId }) {
 function DoeBadge({ doe }) {
   if (!doe) return null;
   return (
-    <span style={{
-      display: "inline-flex", alignItems: "center",
-      padding: "0.2rem 0.55rem",
-      background: "#a5f3fc", color: "#0c4a6e",
-      borderRadius: "4px", fontSize: "0.7rem", fontWeight: 600,
-    }}>
+    <span style={{ display: "inline-flex", alignItems: "center", padding: "0.2rem 0.55rem", background: "#a5f3fc", color: "#0c4a6e", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 600 }}>
       🔬 {doe}
     </span>
   );
@@ -89,34 +105,116 @@ function SpecsPreview({ note, category }) {
   );
 }
 
-function StatCard({ label, value, icon: Icon, color }) {
+function StatCard({ label, value, icon: Icon, color, isActive }) {
   return (
-    <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "12px", padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: "1rem" }}>
+    <div style={{
+      background: isActive ? `${color}11` : "var(--bg-surface)",
+      border: `1px solid ${isActive ? color : "var(--border)"}`,
+      borderRadius: "12px", 
+      padding: "1rem 1.25rem", 
+      display: "flex", 
+      alignItems: "center", 
+      gap: "1rem",
+      transition: "all 0.2s ease"
+    }}>
       <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: `${color}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <Icon size={20} color={color} />
       </div>
       <div>
         <div style={{ fontSize: "1.5rem", fontWeight: 700, fontFamily: "var(--font-display)", lineHeight: 1 }}>{value}</div>
-        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "4px" }}>{label}</div>
+        <div style={{ 
+          fontSize: "0.72rem", 
+          color: isActive ? color : "var(--text-muted)", 
+          marginTop: "4px",
+          fontWeight: isActive ? 600 : 400
+        }}>
+          {label}
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Mobile Card ────────────────────────────────────────────────────────────────
-function AssetCard({ asset, t, onEdit, onReturn, onQR, returning }) {
+// ── 新增：高質感自訂下拉選單 ──────────────────────────────────────────────────
+function CustomSelect({ value, onChange, options, style }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) setIsOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selected = options.find(o => o.value === value) || options[0];
+
+  return (
+    <div ref={ref} style={{ position: "relative", ...style }}>
+      <button 
+        type="button" 
+        onClick={() => setIsOpen(!isOpen)} 
+        style={{
+          width: "100%", padding: "0.55rem 0.875rem", background: "var(--bg-surface)", border: "1px solid var(--border)",
+          borderRadius: "8px", color: "var(--text-primary)", fontSize: "0.8rem", fontFamily: "var(--font-display)",
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", outline: "none",
+          borderColor: isOpen ? "var(--border-focus)" : "var(--border)", transition: "border-color 0.2s"
+        }}
+      >
+        <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selected.label}</span>
+        <ChevronDown size={14} style={{ color: "var(--text-muted)", transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0, marginLeft: "0.5rem" }} />
+      </button>
+
+      {isOpen && (
+        <div className="animate-fade-in" style={{
+          position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 100,
+          background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "12px",
+          boxShadow: "var(--shadow-lg)", padding: "0.35rem", display: "flex", flexDirection: "column", gap: "2px"
+        }}>
+          {options.map(opt => {
+            const isActive = value === opt.value;
+            return (
+              <div 
+                key={opt.value} 
+                onClick={() => { onChange(opt.value); setIsOpen(false); }}
+                style={{
+                  padding: "0.5rem 0.75rem", borderRadius: "8px", fontSize: "0.8rem", fontFamily: "var(--font-display)", cursor: "pointer",
+                  color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
+                  background: isActive ? "var(--bg-elevated)" : "transparent",
+                  fontWeight: isActive ? 600 : 400, transition: "all 0.15s"
+                }}
+                onMouseEnter={e => { if(!isActive) { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-primary)"; } }}
+                onMouseLeave={e => { if(!isActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-secondary)"; } }}
+              >
+                {opt.label}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AssetCard({ asset, t, onEdit, onReturn, onQR, onView, returning }) {
   const { text: noteText } = parseSpecs(asset.note);
   const isBorrowed = asset.status === "borrowed";
+  const overdue = isAssetOverdue(asset.status, asset.returnDate);
+
   return (
-    <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "12px", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-      {/* Top */}
+    <div 
+      onClick={() => onView(asset)}
+      style={{ background: "var(--bg-surface)", border: overdue ? "1px solid var(--danger)" : "1px solid var(--border)", borderRadius: "12px", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.6rem", cursor: "pointer", transition: "transform 0.1s" }}
+      onMouseDown={e => e.currentTarget.style.transform="scale(0.99)"}
+      onMouseUp={e => e.currentTarget.style.transform="scale(1)"}
+    >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ fontSize: "0.95rem", fontWeight: 600 }}>{asset.model || <span style={{ color: "var(--text-muted)" }}>—</span>}</div>
-        <StatusBadge status={asset.status} t={t} />
+        <StatusBadge status={asset.status} returnDate={asset.returnDate} t={t} />
       </div>
       <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}># {asset.assetCode || "—"}</div>
 
-      {/* Issue / DOE 螢光筆 */}
       {(asset.issueId || asset.doe) && (
         <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
           <IssueBadge issueId={asset.issueId} />
@@ -129,21 +227,30 @@ function AssetCard({ asset, t, onEdit, onReturn, onQR, returning }) {
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
         <CategoryBadge category={asset.category} t={t} />
         {asset.borrower && <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>👤 {asset.borrower}</span>}
-        {asset.returnDate && <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>📅 {asset.returnDate}</span>}
+        {asset.returnDate && <span style={{ fontSize: "0.78rem", color: overdue ? "var(--danger)" : "var(--text-muted)", fontWeight: overdue ? 600 : 400 }}>📅 {asset.returnDate}</span>}
       </div>
       {noteText && <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontStyle: "italic" }}>📝 {noteText}</div>}
 
-      {/* Actions */}
       <div style={{ display: "flex", gap: "0.5rem", paddingTop: "0.4rem", borderTop: "1px solid var(--border)" }}>
         {isBorrowed && (
-          <button onClick={() => onReturn(asset)} disabled={returning} style={{ flex: 1, padding: "0.5rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", background: "var(--success-soft)", border: "1px solid var(--success)", borderRadius: "8px", color: "var(--success)", cursor: "pointer", fontSize: "0.8rem", fontFamily: "var(--font-mono)", opacity: returning ? 0.5 : 1 }}>
+          <button 
+            onClick={(e) => { e.stopPropagation(); onReturn(asset); }} 
+            disabled={returning} 
+            style={{ flex: 1, padding: "0.5rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", background: "var(--success-soft)", border: "1px solid var(--success)", borderRadius: "8px", color: "var(--success)", cursor: "pointer", fontSize: "0.8rem", fontFamily: "var(--font-display)", opacity: returning ? 0.5 : 1 }}
+          >
             <Undo2 size={13} /> {t("歸還", "Return")}
           </button>
         )}
-        <button onClick={() => onQR(asset)} style={{ width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-muted)", cursor: "pointer", flexShrink: 0 }}>
+        <button 
+          onClick={(e) => { e.stopPropagation(); onQR(asset); }} 
+          style={{ width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-muted)", cursor: "pointer", flexShrink: 0 }}
+        >
           <QrCode size={15} />
         </button>
-        <button onClick={() => onEdit(asset)} style={{ flex: 1, padding: "0.5rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", background: "var(--accent-soft)", border: "1px solid var(--accent)", borderRadius: "8px", color: "var(--accent)", cursor: "pointer", fontSize: "0.8rem", fontFamily: "var(--font-mono)" }}>
+        <button 
+          onClick={(e) => { e.stopPropagation(); onEdit(asset); }} 
+          style={{ flex: 1, padding: "0.5rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", background: "var(--accent-soft)", border: "1px solid var(--accent)", borderRadius: "8px", color: "var(--accent)", cursor: "pointer", fontSize: "0.8rem", fontFamily: "var(--font-display)" }}
+        >
           <Pencil size={13} /> {t("編輯", "Edit")}
         </button>
       </div>
@@ -151,7 +258,6 @@ function AssetCard({ asset, t, onEdit, onReturn, onQR, returning }) {
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────────────
 export default function HomePage() {
   const { t } = useApp();
   const [assets, setAssets] = useState([]);
@@ -163,6 +269,7 @@ export default function HomePage() {
   const [editAsset, setEditAsset] = useState(null);
   const [returningId, setReturningId] = useState(null);
   const [qrAsset, setQrAsset] = useState(null);
+  const [viewAsset, setViewAsset] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -191,22 +298,27 @@ export default function HomePage() {
   const filtered = assets.filter(a => {
     const q = search.toLowerCase();
     const matchSearch = !search || (a.assetCode||"").toLowerCase().includes(q) || (a.model||"").toLowerCase().includes(q) || (a.borrower||"").toLowerCase().includes(q) || (a.issueId||"").toLowerCase().includes(q);
+    
+    if (filterStatus === "overdue") {
+        return matchSearch && isAssetOverdue(a.status, a.returnDate) && (filterCategory === "all" || a.category === filterCategory);
+    }
+    
     return matchSearch && (filterStatus === "all" || a.status === filterStatus) && (filterCategory === "all" || a.category === filterCategory);
   });
 
   const total = assets.length;
   const available = assets.filter(a => a.status === "available").length;
   const borrowed  = assets.filter(a => a.status === "borrowed").length;
+  const overdueCount = assets.filter(a => isAssetOverdue(a.status, a.returnDate)).length;
 
-  const btnBase = { display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.6rem 1.1rem", border: "none", borderRadius: "8px", fontSize: "0.85rem", fontFamily: "var(--font-mono)", cursor: "pointer", fontWeight: 500 };
-  const selStyle = { padding: "0.55rem 0.875rem", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-secondary)", fontSize: "0.8rem", fontFamily: "var(--font-mono)", cursor: "pointer", outline: "none" };
+  const btnBase = { display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.6rem 1.1rem", border: "none", borderRadius: "8px", fontSize: "0.85rem", fontFamily: "var(--font-display)", cursor: "pointer", fontWeight: 500 };
+  const selStyle = { padding: "0.55rem 0.875rem", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-secondary)", fontSize: "0.8rem", fontFamily: "var(--font-display)", cursor: "pointer", outline: "none" };
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-base)", paddingBottom: isMobile ? "80px" : 0 }}>
       <Navbar />
       <main style={{ maxWidth: "1400px", margin: "0 auto", padding: isMobile ? "1.25rem 1rem" : "2rem 1.5rem" }}>
 
-        {/* Header */}
         <div className="animate-fade-in" style={{ marginBottom: "1.5rem", display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "flex-start" : "flex-end", justifyContent: "space-between", gap: "1rem" }}>
           <div>
             <h1 style={{ fontFamily: "var(--font-display)", fontSize: isMobile ? "1.6rem" : "2rem", fontWeight: 800, letterSpacing: "-0.03em" }}>{t("資產總覽", "Asset Overview")}</h1>
@@ -222,42 +334,60 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="stagger" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.75rem", marginBottom: "1.5rem" }}>
-          <StatCard label={t("資產總數", "Total")} value={total} icon={Package} color="var(--accent)" />
-          <StatCard label={t("可借用", "Available")} value={available} icon={CheckCircle2} color="var(--success)" />
-          <StatCard label={t("借出中", "Borrowed")} value={borrowed} icon={Clock} color="var(--warning)" />
+        <div className="stagger" style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: "0.75rem", marginBottom: "1.5rem" }}>
+          <div onClick={() => setFilterStatus("all")} style={{ cursor: "pointer", transition: "transform 0.1s" }} onMouseDown={e => e.currentTarget.style.transform="scale(0.98)"} onMouseUp={e => e.currentTarget.style.transform="scale(1)"}>
+            <StatCard label={t("資產總數", "Total")} value={total} icon={Package} color="var(--accent)" isActive={filterStatus === "all"} />
+          </div>
+          <div onClick={() => setFilterStatus("available")} style={{ cursor: "pointer", transition: "transform 0.1s" }} onMouseDown={e => e.currentTarget.style.transform="scale(0.98)"} onMouseUp={e => e.currentTarget.style.transform="scale(1)"}>
+            <StatCard label={t("可借用", "Available")} value={available} icon={CheckCircle2} color="var(--success)" isActive={filterStatus === "available"} />
+          </div>
+          <div onClick={() => setFilterStatus("borrowed")} style={{ cursor: "pointer", transition: "transform 0.1s" }} onMouseDown={e => e.currentTarget.style.transform="scale(0.98)"} onMouseUp={e => e.currentTarget.style.transform="scale(1)"}>
+            <StatCard label={t("借出中", "Borrowed")} value={borrowed} icon={Clock} color="var(--warning)" isActive={filterStatus === "borrowed"} />
+          </div>
+          <div onClick={() => setFilterStatus("overdue")} style={{ cursor: "pointer", transition: "transform 0.1s" }} onMouseDown={e => e.currentTarget.style.transform="scale(0.98)"} onMouseUp={e => e.currentTarget.style.transform="scale(1)"}>
+             <StatCard label={t("逾期未還", "Overdue")} value={overdueCount} icon={AlertCircle} color="var(--danger)" isActive={filterStatus === "overdue"} />
+          </div>
         </div>
 
-        {/* Filters */}
         <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "12px", padding: "0.875rem", marginBottom: "1.25rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
           <div style={{ position: "relative" }}>
             <Search size={15} style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("搜尋編號、型號、借用人、Issue ID...", "Search...")}
-              style={{ width: "100%", padding: "0.6rem 0.875rem 0.6rem 2.2rem", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-primary)", fontSize: "0.85rem", fontFamily: "var(--font-mono)", outline: "none" }}
+              style={{ width: "100%", padding: "0.6rem 0.875rem 0.6rem 2.2rem", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-primary)", fontSize: "0.85rem", fontFamily: "var(--font-display)", outline: "none" }}
               onFocus={e => e.target.style.borderColor = "var(--border-focus)"}
               onBlur={e => e.target.style.borderColor = "var(--border)"} />
           </div>
           <div style={{ display: "flex", gap: "0.6rem" }}>
-            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...selStyle, flex: 1 }}>
-              <option value="all">{t("全部狀態", "All Status")}</option>
-              <option value="available">{t("可借用", "Available")}</option>
-              <option value="borrowed">{t("借出中", "Borrowed")}</option>
-            </select>
-            <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ ...selStyle, flex: 1 }}>
-              <option value="all">{t("全部類別", "All")}</option>
-              <option value="laptop">{t("筆電", "Laptop")}</option>
-              <option value="monitor">{t("螢幕", "Monitor")}</option>
-              <option value="docking">{t("擴充座", "Docking")}</option>
-              <option value="other">{t("其他", "Other")}</option>
-            </select>
+            {/* ── 替換為自訂下拉選單 ── */}
+            <CustomSelect 
+              value={filterStatus} 
+              onChange={setFilterStatus} 
+              options={[
+                { value: "all", label: t("全部狀態", "All Status") },
+                { value: "available", label: t("可借用", "Available") },
+                { value: "borrowed", label: t("借出中", "Borrowed") },
+                { value: "overdue", label: t("逾期", "Overdue") }
+              ]} 
+              style={{ flex: 1 }} 
+            />
+            <CustomSelect 
+              value={filterCategory} 
+              onChange={setFilterCategory} 
+              options={[
+                { value: "all", label: t("全部類別", "All") },
+                { value: "laptop", label: t("筆電", "Laptop") },
+                { value: "monitor", label: t("螢幕", "Monitor") },
+                { value: "docking", label: t("擴充座", "Docking") },
+                { value: "other", label: t("其他", "Other") }
+              ]} 
+              style={{ flex: 1 }} 
+            />
             {(filterStatus !== "all" || filterCategory !== "all" || search) && (
               <button onClick={() => { setSearch(""); setFilterStatus("all"); setFilterCategory("all"); }} style={{ ...selStyle, background: "var(--danger-soft)", borderColor: "var(--danger)", color: "var(--danger)", whiteSpace: "nowrap" }}>{t("清除", "Clear")}</button>
             )}
           </div>
         </div>
 
-        {/* Content */}
         {loading ? (
           <div style={{ padding: "4rem", textAlign: "center", color: "var(--text-muted)" }}>
             <RefreshCw size={24} style={{ animation: "spin 1s linear infinite", margin: "0 auto 0.75rem", display: "block" }} />
@@ -272,6 +402,7 @@ export default function HomePage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {filtered.map(asset => (
               <AssetCard key={asset.id} asset={asset} t={t}
+                onView={setViewAsset}
                 onEdit={a => { setEditAsset(a); setShowForm(true); }}
                 onReturn={handleReturn} onQR={setQrAsset}
                 returning={returningId === asset.id} />
@@ -281,7 +412,6 @@ export default function HomePage() {
             </div>
           </div>
         ) : (
-          /* Desktop Table */
           <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "12px", overflow: "hidden" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
@@ -294,10 +424,13 @@ export default function HomePage() {
               <tbody className="stagger">
                 {filtered.map(asset => {
                   const { text: noteText } = parseSpecs(asset.note);
+                  const overdue = isAssetOverdue(asset.status, asset.returnDate);
                   return (
-                    <tr key={asset.id} style={{ borderBottom: "1px solid var(--border)", transition: "background 0.15s" }}
-                      onMouseEnter={e => e.currentTarget.style.background = "var(--bg-hover)"}
-                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <tr key={asset.id} 
+                      onClick={() => setViewAsset(asset)}
+                      style={{ borderBottom: "1px solid var(--border)", transition: "background 0.15s", background: overdue ? "var(--danger-soft)" : "transparent", cursor: "pointer" }}
+                      onMouseEnter={e => e.currentTarget.style.background = overdue ? "var(--danger-soft)" : "var(--bg-hover)"}
+                      onMouseLeave={e => e.currentTarget.style.background = overdue ? "var(--danger-soft)" : "transparent"}>
                       <td style={{ padding: "0.875rem 1rem" }}>
                         <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{asset.model || <span style={{ color: "var(--text-muted)" }}>—</span>}</div>
                         <SpecsPreview note={asset.note} category={asset.category} />
@@ -305,10 +438,10 @@ export default function HomePage() {
                       </td>
                       <td style={{ padding: "0.875rem 1rem", fontSize: "0.8rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{asset.assetCode || "—"}</td>
                       <td style={{ padding: "0.875rem 1rem" }}><CategoryBadge category={asset.category} t={t} /></td>
-                      <td style={{ padding: "0.875rem 1rem" }}><StatusBadge status={asset.status} t={t} /></td>
+                      <td style={{ padding: "0.875rem 1rem" }}><StatusBadge status={asset.status} returnDate={asset.returnDate} t={t} /></td>
                       <td style={{ padding: "0.875rem 1rem", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
                         {asset.borrower || <span style={{ color: "var(--text-muted)" }}>—</span>}
-                        {asset.returnDate && <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>📅 {asset.returnDate}</div>}
+                        {asset.returnDate && <div style={{ fontSize: "0.72rem", color: overdue ? "var(--danger)" : "var(--text-muted)", fontWeight: overdue ? 600 : 400 }}>📅 {asset.returnDate}</div>}
                       </td>
                       <td style={{ padding: "0.875rem 1rem" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
@@ -319,14 +452,14 @@ export default function HomePage() {
                       <td style={{ padding: "0.875rem 1rem" }}>
                         <div style={{ display: "flex", gap: "0.4rem" }}>
                           {asset.status === "borrowed" && (
-                            <button onClick={() => handleReturn(asset)} disabled={returningId === asset.id} title={t("歸還","Return")} style={{ width: "30px", height: "30px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--success-soft)", border: "1px solid var(--success)", borderRadius: "6px", color: "var(--success)", cursor: "pointer", opacity: returningId === asset.id ? 0.5 : 1 }}>
+                            <button onClick={(e) => { e.stopPropagation(); handleReturn(asset); }} disabled={returningId === asset.id} title={t("歸還","Return")} style={{ width: "30px", height: "30px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--success-soft)", border: "1px solid var(--success)", borderRadius: "6px", color: "var(--success)", cursor: "pointer", opacity: returningId === asset.id ? 0.5 : 1 }}>
                               <Undo2 size={13} />
                             </button>
                           )}
-                          <button onClick={() => setQrAsset(asset)} title="QR Code" style={{ width: "30px", height: "30px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "6px", color: "var(--text-muted)", cursor: "pointer" }}>
+                          <button onClick={(e) => { e.stopPropagation(); setQrAsset(asset); }} title="QR Code" style={{ width: "30px", height: "30px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "6px", color: "var(--text-muted)", cursor: "pointer" }}>
                             <QrCode size={13} />
                           </button>
-                          <button onClick={() => { setEditAsset(asset); setShowForm(true); }} title={t("編輯","Edit")} style={{ width: "30px", height: "30px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--accent-soft)", border: "1px solid var(--accent)", borderRadius: "6px", color: "var(--accent)", cursor: "pointer" }}>
+                          <button onClick={(e) => { e.stopPropagation(); setEditAsset(asset); setShowForm(true); }} title={t("編輯","Edit")} style={{ width: "30px", height: "30px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--accent-soft)", border: "1px solid var(--accent)", borderRadius: "6px", color: "var(--accent)", cursor: "pointer" }}>
                             <Pencil size={13} />
                           </button>
                         </div>
@@ -343,8 +476,11 @@ export default function HomePage() {
         )}
       </main>
 
+      {/* ── 渲染 Modals ── */}
       {showForm && <AssetForm editData={editAsset} onClose={() => { setShowForm(false); setEditAsset(null); }} onSuccess={fetchAssets} />}
       {qrAsset && <QRModal asset={qrAsset} onClose={() => setQrAsset(null)} />}
+      {viewAsset && <AssetDetailModal asset={viewAsset} onClose={() => setViewAsset(null)} />} 
+      
       {isMobile && <BottomNav />}
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
