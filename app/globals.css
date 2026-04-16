@@ -9,33 +9,44 @@
   /* 等寬字體：保留英文等寬特性，並在後方補上 'Noto Sans TC' 拯救中文字元 */
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Noto Sans TC', monospace;
 }
-/* ── 深色主題 (沉穩深灰質感) ── */
+
+/* ── 深色主題 (根據色彩科學優化的護眼配置) ── */
 [data-theme="dark"] {
-  --bg-base:      #0a0a0a;
-  --bg-surface:   #121212;
-  --bg-elevated:  #1e1e1e;
-  --bg-hover:     #262626;
-  --border:       #27272a;
-  --border-focus: #52525b;
-  --text-primary: #ededed;
-  --text-secondary: #a1a1aa;
-  --text-muted:   #71717a;
+  /* 1. 背景：避免純黑，改用深灰色調降低視覺疲勞 */
+  --bg-base:      #121212;
+  /* 2. 深度：捨棄陰影，利用不同的明度(Lightness)來建立卡片的立體層次 */
+  --bg-surface:   #1e1e1e;
+  --bg-elevated:  #2c2c2c;
+  --bg-hover:     #333333;
+
+  /* 3. 邊框：使用透明度(rgba)讓邊框自然融入深色背景中 */
+  --border:       rgba(255, 255, 255, 0.12);
+  --border-focus: rgba(255, 255, 255, 0.30);
+
+  /* 4. 文字：絕對避免純白！根據 Material Design 規範，利用透明度建立閱讀層次 */
+  --text-primary: rgba(255, 255, 255, 0.86);   /* 高強調 (86%) */
+  --text-secondary: rgba(255, 255, 255, 0.60); /* 中強調 (60%) */
+  --text-muted:   rgba(255, 255, 255, 0.38);   /* 低強調 (38%) */
   
-  /* 沉穩的高階色調 */
-  --accent:       #fafafa;      /* 深色模式下的強調色改為純白，極簡洗鍊 */
-  --accent-soft:  #27272a;
-  --success:      #10b981;      /* 柔和的翡翠綠 */
-  --success-soft: #10b9811a;
-  --warning:      #f59e0b;      /* 溫潤的琥珀色 */
-  --warning-soft: #f59e0b1a;
-  --danger:       #ef4444;      /* 內斂的珊瑚紅 */
-  --danger-soft:  #ef44441a;
+  /* 5. 狀態色：全面改用「不飽和粉彩/莫蘭迪色」，避免深色模式下的螢光刺眼感 */
+  --accent:       #e4e4e7;      /* 維持極簡風，但不使用純白，改用柔和的珍珠灰 (Zinc-200) */
+  --accent-soft:  rgba(228, 228, 231, 0.15);
   
-  --shadow:       0 4px 20px rgba(0, 0, 0, 0.4);
-  --shadow-lg:    0 12px 40px rgba(0, 0, 0, 0.6);
+  --success:      #81c784;      /* 不飽和的薄荷綠 */
+  --success-soft: rgba(129, 199, 132, 0.15);
+  
+  --warning:      #ffb74d;      /* 溫潤的暖橘/琥珀色 */
+  --warning-soft: rgba(255, 183, 77, 0.15);
+  
+  --danger:       #e57373;      /* 柔和不刺眼的珊瑚紅 */
+  --danger-soft:  rgba(229, 115, 115, 0.15);
+  
+  /* 深色模式下的陰影作用極低，故調弱透明度 */
+  --shadow:       0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-lg:    0 12px 40px rgba(0, 0, 0, 0.7);
 }
 
-/* ── 淺色主題 (純淨呼吸感) ── */
+/* ── 淺色主題 (純淨呼吸感，保持原樣) ── */
 [data-theme="light"] {
   --bg-base:      #fcfcfc;
   --bg-surface:   #ffffff;

@@ -7,6 +7,16 @@ import BottomNav from "../../components/BottomNav";
 import AssetForm from "../../components/AssetForm";
 import { useApp } from "../layout";
 
+// 🌟 新增：解析規格與備註的工具函式
+function parseSpecs(noteStr) {
+  if (!noteStr) return { text: "", specs: {} };
+  try {
+    const parsed = JSON.parse(noteStr);
+    const { _note, ...specs } = parsed;
+    return { text: _note || "", specs };
+  } catch { return { text: noteStr, specs: {} }; }
+}
+
 export default function ScanPage() {
   const { t } = useApp();
   const router = useRouter();
@@ -14,14 +24,13 @@ export default function ScanPage() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
-  const [mode, setMode] = useState("scan"); // "scan" | "result"
+  const [mode, setMode] = useState("scan");
   const [scanning, setScanning] = useState(false);
   const [asset, setAsset] = useState(null);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [returning, setReturning] = useState(false);
 
-  // If ?code= param is present (opened from QR), fetch that asset directly
   useEffect(() => {
     const code = searchParams.get("code");
     if (code) fetchByCode(code);
@@ -50,7 +59,6 @@ export default function ScanPage() {
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
 
-      // Dynamically import jsQR for QR decoding
       const jsQR = (await import("jsqr")).default;
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
@@ -67,7 +75,6 @@ export default function ScanPage() {
         const code = jsQR(imageData.data, imageData.width, imageData.height);
         if (code) {
           stopCamera();
-          // Parse URL to get code param
           try {
             const url = new URL(code.data);
             const assetCode = url.searchParams.get("code");
@@ -111,6 +118,11 @@ export default function ScanPage() {
 
   const reset = () => { setMode("scan"); setAsset(null); setError(""); stopCamera(); };
 
+  // 解析目前掃描到的資產規格
+  const parsedNote = parseSpecs(asset?.note);
+  const specs = parsedNote.specs;
+  const noteText = parsedNote.text;
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-base)", paddingBottom: "80px" }}>
       <Navbar />
@@ -137,7 +149,6 @@ export default function ScanPage() {
               {scanning ? (
                 <>
                   <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  {/* Scan overlay */}
                   <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
                     <div style={{
                       width: "60%", aspectRatio: "1",
@@ -168,7 +179,9 @@ export default function ScanPage() {
               width: "100%", padding: "0.875rem",
               background: scanning ? "var(--danger)" : "var(--accent)",
               border: "none", borderRadius: "12px",
-              color: "#fff", fontSize: "1rem", fontFamily: "var(--font-mono)",
+              color: scanning ? "#fff" : "var(--bg-base)", 
+              fontSize: "1rem", 
+              fontFamily: "var(--font-display)", 
               cursor: "pointer", fontWeight: 600,
               display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
             }}>
@@ -177,25 +190,27 @@ export default function ScanPage() {
             </button>
           </>
         ) : (
-          /* Result view */
+          /* 🌟 美化後的 Result view */
           <>
             <button onClick={reset} style={{
               display: "flex", alignItems: "center", gap: "0.4rem",
               background: "none", border: "none", color: "var(--text-muted)",
-              fontSize: "0.85rem", fontFamily: "var(--font-mono)", cursor: "pointer",
+              fontSize: "0.85rem", 
+              fontFamily: "var(--font-display)", 
+              cursor: "pointer",
               marginBottom: "1.25rem",
             }}>
               <ArrowLeft size={16} /> {t("重新掃描", "Scan Again")}
             </button>
 
             {asset && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                 {/* Asset Card */}
-                <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "16px", padding: "1.5rem" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1rem" }}>
+                <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "16px", padding: "1.5rem", boxShadow: "var(--shadow)" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1.25rem" }}>
                     <div>
-                      <div style={{ fontFamily: "var(--font-display)", fontSize: "1.3rem", fontWeight: 800 }}>{asset.model || asset.assetCode}</div>
-                      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "2px" }}>#{asset.assetCode}</div>
+                      <div style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 800 }}>{asset.model || asset.assetCode}</div>
+                      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "4px", fontFamily: "var(--font-mono)" }}>#{asset.assetCode}</div>
                     </div>
                     <span style={{
                       display: "inline-flex", alignItems: "center", gap: "0.35rem",
@@ -210,36 +225,68 @@ export default function ScanPage() {
                     </span>
                   </div>
 
-                  {/* Info grid */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                  {/* 借用與取得資訊 */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" }}>
                     {asset.borrower && (
-                      <div style={{ background: "var(--bg-elevated)", borderRadius: "8px", padding: "0.6rem 0.75rem" }}>
-                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: "2px" }}>BORROWER</div>
+                      <div style={{ background: "var(--bg-elevated)", borderRadius: "8px", padding: "0.6rem 0.75rem", border: "1px solid var(--border)" }}>
+                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: "4px", fontWeight: 600 }}>BORROWER</div>
                         <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{asset.borrower}</div>
                       </div>
                     )}
                     {asset.returnDate && (
-                      <div style={{ background: "var(--bg-elevated)", borderRadius: "8px", padding: "0.6rem 0.75rem" }}>
-                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: "2px" }}>RETURN DATE</div>
+                      <div style={{ background: "var(--bg-elevated)", borderRadius: "8px", padding: "0.6rem 0.75rem", border: "1px solid var(--border)" }}>
+                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: "4px", fontWeight: 600 }}>RETURN DATE</div>
                         <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{asset.returnDate}</div>
                       </div>
                     )}
-                    {asset.issueId && (
-                      <div style={{ background: "#fef08a33", border: "1px solid #fef08a88", borderRadius: "8px", padding: "0.6rem 0.75rem" }}>
-                        <div style={{ fontSize: "0.65rem", color: "#a16207", marginBottom: "2px" }}>ISSUE ID</div>
-                        <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#92400e" }}>{asset.issueId}</div>
-                      </div>
-                    )}
-                    {asset.doe && (
-                      <div style={{ background: "#a5f3fc22", border: "1px solid #a5f3fc88", borderRadius: "8px", padding: "0.6rem 0.75rem" }}>
-                        <div style={{ fontSize: "0.65rem", color: "#0369a1", marginBottom: "2px" }}>DOE</div>
-                        <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#0c4a6e" }}>{asset.doe}</div>
+                    {asset.acquisitionDate && (
+                      <div style={{ background: "var(--bg-elevated)", borderRadius: "8px", padding: "0.6rem 0.75rem", border: "1px solid var(--border)" }}>
+                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: "4px", fontWeight: 600 }}>ACQUISITION DATE</div>
+                        <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{asset.acquisitionDate}</div>
                       </div>
                     )}
                   </div>
 
-                  {asset.note && (
-                    <div style={{ marginTop: "0.75rem", fontSize: "0.82rem", color: "var(--text-muted)", fontStyle: "italic" }}>📝 {asset.note}</div>
+                  {/* 專案追蹤 */}
+                  {(asset.issueId || asset.doe) && (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" }}>
+                      {asset.issueId && (
+                        <div style={{ background: "#fef08a33", border: "1px solid #fef08a88", borderRadius: "8px", padding: "0.6rem 0.75rem" }}>
+                          <div style={{ fontSize: "0.65rem", color: "#a16207", marginBottom: "4px", fontWeight: 600 }}>ISSUE ID</div>
+                          <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#92400e" }}>{asset.issueId}</div>
+                        </div>
+                      )}
+                      {asset.doe && (
+                        <div style={{ background: "#a5f3fc22", border: "1px solid #a5f3fc88", borderRadius: "8px", padding: "0.6rem 0.75rem" }}>
+                          <div style={{ fontSize: "0.65rem", color: "#0369a1", marginBottom: "4px", fontWeight: 600 }}>DOE</div>
+                          <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#0c4a6e" }}>{asset.doe}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 🌟 解析後的硬體規格網格 */}
+                  {Object.keys(specs).length > 0 && (
+                    <div style={{ paddingTop: "0.75rem", borderTop: "1px dashed var(--border)" }}>
+                      <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
+                        HARDWARE SPECS
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                        {Object.entries(specs).filter(([, v]) => v).map(([k, v]) => (
+                          <div key={k} style={{ background: "var(--bg-elevated)", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)" }}>
+                            <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "2px" }}>{k}</div>
+                            <div style={{ fontSize: "0.85rem", fontWeight: 500 }}>{v}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 解析後的備註 */}
+                  {noteText && (
+                    <div style={{ marginTop: "1rem", fontSize: "0.85rem", lineHeight: 1.6, color: "var(--text-secondary)", background: "var(--bg-elevated)", padding: "0.75rem 1rem", borderRadius: "8px", border: "1px solid var(--border)" }}>
+                      📝 {noteText}
+                    </div>
                   )}
                 </div>
 
@@ -249,10 +296,10 @@ export default function ScanPage() {
                     <button onClick={handleReturn} disabled={returning} style={{
                       width: "100%", padding: "0.875rem",
                       background: "var(--success)", border: "none", borderRadius: "12px",
-                      color: "#fff", fontSize: "0.95rem", fontFamily: "var(--font-mono)",
+                      color: "#fff", fontSize: "0.95rem", fontFamily: "var(--font-display)", 
                       cursor: returning ? "not-allowed" : "pointer", fontWeight: 600,
                       display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
-                      opacity: returning ? 0.6 : 1,
+                      opacity: returning ? 0.6 : 1, boxShadow: "var(--shadow)"
                     }}>
                       {returning ? <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> : <CheckCircle2 size={18} />}
                       {t("確認歸還", "Confirm Return")}
@@ -262,8 +309,8 @@ export default function ScanPage() {
                     <button onClick={() => setShowForm(true)} style={{
                       width: "100%", padding: "0.875rem",
                       background: "var(--accent)", border: "none", borderRadius: "12px",
-                      color: "#fff", fontSize: "0.95rem", fontFamily: "var(--font-mono)",
-                      cursor: "pointer", fontWeight: 600,
+                      color: "var(--bg-base)", fontSize: "0.95rem", fontFamily: "var(--font-display)", 
+                      cursor: "pointer", fontWeight: 600, boxShadow: "var(--shadow)"
                     }}>
                       {t("借出此設備", "Borrow This Device")}
                     </button>
@@ -271,7 +318,7 @@ export default function ScanPage() {
                   <button onClick={() => setShowForm(true)} style={{
                     width: "100%", padding: "0.75rem",
                     background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "12px",
-                    color: "var(--text-secondary)", fontSize: "0.9rem", fontFamily: "var(--font-mono)",
+                    color: "var(--text-secondary)", fontSize: "0.9rem", fontFamily: "var(--font-display)", 
                     cursor: "pointer",
                   }}>
                     {t("編輯資產資訊", "Edit Asset Info")}

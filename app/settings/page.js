@@ -25,19 +25,23 @@ function SettingRow({ icon: Icon, label, children }) {
 export default function SettingsPage() {
   const { theme, toggleTheme, lang, toggleLang, t } = useApp();
 
-  const Toggle = ({ active, onToggle, labelOn, labelOff }) => (
-    <button onClick={onToggle} style={{
-      padding: "0.35rem 0.875rem",
-      background: active ? "var(--accent)" : "var(--bg-elevated)",
-      border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
-      borderRadius: "999px",
-      color: active ? "#fff" : "var(--text-secondary)",
-      fontSize: "0.8rem", fontFamily: "var(--font-mono)",
-      cursor: "pointer", transition: "all 0.2s",
-    }}>
-      {active ? labelOn : labelOff}
-    </button>
-  );
+const Toggle = ({ active, onToggle, labelOn, labelOff }) => (
+  <button onClick={onToggle} style={{
+    padding: "0.35rem 0.875rem",
+    background: active ? "var(--accent)" : "var(--bg-elevated)",
+    border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+    borderRadius: "8px",
+    // 🌟 關鍵修正：將 "#fff" 改為 "var(--bg-base)"
+    color: active ? "var(--bg-base)" : "var(--text-secondary)", 
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.2s",
+    fontFamily: "var(--font-display)",
+  }}>
+    {active ? labelOn : labelOff}
+  </button>
+);
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-base)", paddingBottom: "80px" }}>
