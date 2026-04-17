@@ -1,6 +1,6 @@
 "use client";
 import { X, Laptop, Monitor, Plug, Package, User, Calendar, Tag, Hash, FileText } from "lucide-react";
-import { useApp } from "../app/layout";
+import { useApp } from "../app/providers"; // 或 "../providers"，取決於相對位置
 
 const categoryMeta = {
   laptop:  { icon: Laptop,  colorVar: "--accent",     label: ["筆電", "Laptop"] },

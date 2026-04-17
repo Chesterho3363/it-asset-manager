@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { X, Save, Loader2, Trash2, ChevronDown, ChevronUp } from "lucide-react";
-import { useApp } from "../app/layout";
+import { useApp } from "../app/providers"; 
 
 const inputStyle = {
   width: "100%", padding: "0.6rem 0.875rem",

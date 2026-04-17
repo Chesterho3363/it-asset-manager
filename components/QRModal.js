@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { X, Download, Printer } from "lucide-react";
-import { useApp } from "../app/layout";
+import { useApp } from "../app/providers"; 
 
 export default function QRModal({ asset, onClose }) {
   const { t } = useApp();

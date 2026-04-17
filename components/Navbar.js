@@ -1,66 +1,47 @@
 "use client";
-import { Box, Settings } from "lucide-react";
+import { Settings, Bell, User } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { useApp } from "../app/layout";
+import { useSession } from "next-auth/react"; // 🌟 引入 Session 拿 Google 資料
+import { useApp } from "../app/providers";    // 🌟 取得自訂名稱
 
 export default function Navbar() {
-  const { t } = useApp();
   const router = useRouter();
-  const [isMobile, setIsMobile] = useState(false);
+  const { data: session } = useSession(); 
+  const { customName, t } = useApp();
 
-  // 偵測螢幕寬度，判斷是否為手機版
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
+  // 🌟 邏輯判斷：如果登入了，優先顯示自訂名稱 ➔ 沒有自訂就顯示 Google 名稱 ➔ 沒登入就顯示預設文字
+  const displayName = session 
+    ? (customName || session.user?.name) 
+    : t("IT 資產管理", "IT Asset Manager");
 
   return (
-    <nav style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "1rem 1.5rem", background: "var(--bg-surface)",
-      borderBottom: "1px solid var(--border)", position: "sticky", top: 0, zIndex: 50
-    }}>
-      {/* 左側 Logo 與標題 (點擊可回首頁) */}
-      <div
-        onClick={() => router.push("/")}
-        style={{ display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer" }}
-      >
-        <div style={{
-          width: "36px", height: "36px", background: "var(--accent)", color: "var(--bg-base)",
-          borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center"
-        }}>
-          <Box size={20} />
-        </div>
-        <div>
-          <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.1rem", lineHeight: 1.1, color: "var(--text-primary)" }}>
-            {t("IT 資產管理", "IT Asset Manager")}
-          </div>
-          <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", letterSpacing: "0.05em", fontFamily: "var(--font-mono)", marginTop: "2px" }}>
-            ASSET TRACKER
-          </div>
+    <nav style={{ padding: "1rem 1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-surface)", borderBottom: "1px solid var(--border)", position: "sticky", top: 0, zIndex: 50 }}>
+      <div style={{ fontWeight: 800, fontSize: "1.25rem", fontFamily: "var(--font-display)", letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
+        {/* 🌟 顯示名稱 */}
+        {displayName}
+      </div>
+      
+      <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+        <button style={{ background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer", position: "relative" }}>
+          <Bell size={20} />
+          <span style={{ position: "absolute", top: 0, right: 0, width: "8px", height: "8px", background: "var(--danger)", borderRadius: "50%", border: "2px solid var(--bg-surface)" }}></span>
+        </button>
+        <button 
+          onClick={() => router.push("/settings")}
+          style={{ background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer" }}
+        >
+          <Settings size={20} />
+        </button>
+        
+        {/* 🌟 顯示 Google 頭像 */}
+        <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "var(--bg-elevated)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+          {session?.user?.image ? (
+            <img src={session.user.image} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            <User size={16} style={{ color: "var(--text-muted)" }} />
+          )}
         </div>
       </div>
-
-      {/* 右側按鈕：網頁版顯示「設定齒輪」，手機版則自動隱藏（交給 BottomNav 負責） */}
-      {!isMobile && (
-        <button
-          onClick={() => router.push("/settings")}
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            width: "40px", height: "40px", borderRadius: "10px",
-            background: "var(--bg-elevated)", border: "1px solid var(--border)",
-            color: "var(--text-secondary)", cursor: "pointer", transition: "all 0.2s"
-          }}
-          onMouseEnter={e => e.currentTarget.style.color = "var(--text-primary)"}
-          onMouseLeave={e => e.currentTarget.style.color = "var(--text-secondary)"}
-          title={t("設定", "Settings")}
-        >
-          <Settings size={18} />
-        </button>
-      )}
     </nav>
   );
 }

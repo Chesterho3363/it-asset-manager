@@ -5,7 +5,7 @@ import Navbar from "../components/Navbar";
 import BottomNav from "../components/BottomNav";
 import AssetForm from "../components/AssetForm";
 import QRModal from "../components/QRModal";
-import { useApp } from "./layout";
+import { useApp } from "./providers"; 
 import AssetDetailModal from "../components/AssetDetailModal";
 
 const categoryMeta = {
@@ -116,7 +116,7 @@ function StatCard({ label, value, icon: Icon, color, isActive }) {
       alignItems: "center", 
       gap: "0.75rem",
       transition: "all 0.2s ease",
-      minWidth: 0, /* 防止卡片被內容撐爆 */
+      minWidth: 0,
     }}>
       <div style={{ width: "38px", height: "38px", borderRadius: "10px", background: `${color}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <Icon size={18} color={color} />
@@ -287,9 +287,15 @@ export default function HomePage() {
     setLoading(true);
     setFetchError("");
     try { 
-      const res = await fetch("/api/assets", {
-        headers: { "ngrok-skip-browser-warning": "true" }
+      // 🌟 從 localStorage 讀取管理員視角設定 (預設為 true 看全部)
+      const adminViewAll = localStorage.getItem("adminViewAll") !== "false";
+      
+      // 🌟 關鍵修正：加入 cache: "no-store" 強制每次都跟伺服器要最新的資料！
+      const res = await fetch(`/api/assets?adminView=${adminViewAll}`, {
+        headers: { "ngrok-skip-browser-warning": "true" },
+        cache: "no-store" 
       }); 
+      
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const data = await res.json(); 
       if (data.success) {
@@ -365,7 +371,6 @@ export default function HomePage() {
           <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: "4px" }}>{t("管理所有 IT 設備的借還狀態", "Manage all IT equipment borrow status")}</p>
         </div>
 
-        {/* 🌟 完美魔法：用原生 CSS Grid 自動計算，放棄 isMobile 判斷，永不跑版 */}
         <div className="stagger" style={{ 
           display: "grid", 
           gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", 
@@ -395,7 +400,6 @@ export default function HomePage() {
               onBlur={e => e.target.style.borderColor = "var(--border)"} />
           </div>
           
-          {/* 🌟 完美魔法 2：篩選列同樣套用自動網格系統，手機上自動變兩排，電腦變一排 */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.6rem" }}>
             <CustomSelect value={filterStatus} onChange={setFilterStatus} options={[{ value: "all", label: t("全部狀態", "All Status") }, { value: "available", label: t("可借用", "Available") }, { value: "borrowed", label: t("借出中", "Borrowed") }, { value: "overdue", label: t("🔴 逾期", "Overdue") }]} />
             <CustomSelect value={filterCategory} onChange={setFilterCategory} options={[{ value: "all", label: t("全部類別", "All") }, { value: "laptop", label: t("筆電", "Laptop") }, { value: "monitor", label: t("螢幕", "Monitor") }, { value: "docking", label: t("擴充座", "Docking") }, { value: "other", label: t("其他", "Other") }]} />

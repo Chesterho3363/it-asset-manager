@@ -1,75 +1,78 @@
 import { NextResponse } from "next/server";
 import { getAllAssets, createAsset } from "@/lib/notion";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 
 // ─── GET /api/assets ──────────────────────────────────────────────────────────
 export async function GET(request) {
   try {
+    const session = await getServerSession(authOptions);
+
+    if (!session) {
+      return NextResponse.json({
+        success: true,
+        count: 0,
+        data: [],
+      }, { status: 200 });
+    }
+
+    const adminEmail = (process.env.ADMIN_EMAIL || "ho3363@gmail.com").toLowerCase().trim();
+    const userEmail = session.user.email.toLowerCase().trim();
+    const isOwnerAdmin = userEmail === adminEmail;
+
     const { searchParams } = new URL(request.url);
+    
+    // 🌟 關鍵新增：接收前端傳來的視角參數
+    const adminViewParam = searchParams.get("adminView");
+    
+    // 🌟 判斷邏輯：如果是管理員，且前端「沒有」明確傳送 false，才開啟全域視角
+    const shouldViewAll = isOwnerAdmin && adminViewParam !== "false";
+
     const filters = {
       category: searchParams.get("category") || undefined,
       status: searchParams.get("status") || undefined,
+      // 如果要看全部 -> undefined (不限制 owner)
+      // 如果是一般人，或是管理員把開關切掉了 -> 嚴格限制只能抓自己的 Email
+      owner: shouldViewAll ? undefined : userEmail,
     };
 
     const assets = await getAllAssets(filters);
 
     return NextResponse.json(
-      {
-        success: true,
-        count: assets.length,
-        data: assets,
-      },
+      { success: true, count: assets.length, data: assets },
       { status: 200 }
     );
   } catch (error) {
     console.error("[GET /api/assets] Error:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "無法取得資產列表",
-        message: error.message,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "系統錯誤" }, { status: 500 });
   }
 }
 
 // ─── POST /api/assets ─────────────────────────────────────────────────────────
 export async function POST(request) {
   try {
+    const session = await getServerSession(authOptions);
+
+    if (!session) {
+      return NextResponse.json({ success: false, error: "權限不足，請先登入" }, { status: 401 });
+    }
+
     const body = await request.json();
-
     const { assetCode } = body;
-    if (!assetCode || typeof assetCode !== "string" || !assetCode.trim()) {
-      return NextResponse.json({ success: false, error: "assetCode 為必填欄位" }, { status: 400 });
+
+    if (!assetCode?.trim()) {
+      return NextResponse.json({ success: false, error: "assetCode 為必填" }, { status: 400 });
     }
 
-    const validCategories = ["laptop", "monitor", "docking", "other"];
-    if (body.category && !validCategories.includes(body.category)) {
-      return NextResponse.json({ success: false, error: `category 必須為以下其一：${validCategories.join(", ")}` }, { status: 400 });
-    }
-
-    const validStatuses = ["available", "borrowed"];
-    if (body.status && !validStatuses.includes(body.status)) {
-      return NextResponse.json({ success: false, error: `status 必須為以下其一：${validStatuses.join(", ")}` }, { status: 400 });
-    }
-
-    // ── 修正：將所有欄位完整對接，包含 acquisitionDate, issueId, doe ──
     const asset = await createAsset({
+      ...body,
       assetCode: assetCode.trim(),
-      model: body.model ?? "",
-      category: body.category ?? "other",
-      status: body.status ?? "available",
-      borrower: body.borrower ?? "",
-      returnDate: body.returnDate ?? null,
-      acquisitionDate: body.acquisitionDate ?? null, 
-      issueId: body.issueId ?? "",
-      doe: body.doe ?? "",
-      note: body.note ?? "",
+      owner: session.user.email, 
     });
 
     return NextResponse.json({ success: true, data: asset }, { status: 201 });
   } catch (error) {
     console.error("[POST /api/assets] Error:", error);
-    return NextResponse.json({ success: false, error: "無法新增資產", message: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: "新增失敗" }, { status: 500 });
   }
 }

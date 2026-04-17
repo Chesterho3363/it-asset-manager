@@ -1,7 +1,7 @@
 "use client";
 import { usePathname, useRouter } from "next/navigation";
 import { Home, ScanLine, Settings } from "lucide-react";
-import { useApp } from "../app/layout";
+import { useApp } from "../app/providers";
 
 export default function BottomNav() {
   const pathname = usePathname();

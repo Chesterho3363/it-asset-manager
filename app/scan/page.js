@@ -5,7 +5,7 @@ import { ScanLine, CheckCircle2, AlertCircle, Loader2, ArrowLeft } from "lucide-
 import Navbar from "../../components/Navbar";
 import BottomNav from "../../components/BottomNav";
 import AssetForm from "../../components/AssetForm";
-import { useApp } from "../layout";
+import { useApp } from "../providers";
 
 // 🌟 新增：解析規格與備註的工具函式
 function parseSpecs(noteStr) {
