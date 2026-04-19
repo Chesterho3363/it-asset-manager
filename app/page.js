@@ -67,13 +67,12 @@ const AnimatedEmptyState = ({ t }) => (
   </div>
 );
 
-// 🌟 加入兩個新類別的色彩與圖示定義
 const categoryMeta = {
   laptop:  { icon: Laptop,    color: "var(--accent)", softColor: "var(--accent-soft)", label: ["筆電", "Laptop"] },
   monitor: { icon: Monitor,   color: "#f59e0b", softColor: "rgba(245, 158, 11, 0.15)", label: ["螢幕", "Monitor"] },
   docking: { icon: Plug,      color: "#10b981", softColor: "rgba(16, 185, 129, 0.15)", label: ["Docking", "Docking"] },
-  office:  { icon: Briefcase, color: "#8b5cf6", softColor: "rgba(139, 92, 246, 0.15)", label: ["辦公室用品", "Office"] }, // 🌟 新增
-  semi:    { icon: Layers,    color: "#06b6d4", softColor: "rgba(6, 182, 212, 0.15)", label: ["半成品", "Semi-finished"] }, // 🌟 新增
+  office:  { icon: Briefcase, color: "#8b5cf6", softColor: "rgba(139, 92, 246, 0.15)", label: ["辦公室用品", "Office"] },
+  semi:    { icon: Layers,    color: "#06b6d4", softColor: "rgba(6, 182, 212, 0.15)", label: ["半成品", "Semi-finished"] },
   other:   { icon: Package,   color: "#71717a", softColor: "rgba(113, 113, 122, 0.15)", label: ["其他", "Other"] },
 };
 
@@ -353,7 +352,8 @@ export default function HomePage() {
   const hasActiveFilters = search || filterStatus !== "all" || filterCategory !== "all" || sortBy !== "assetCode";
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg-base)", paddingBottom: isMobile ? "90px" : "2rem" }}>
+    // 🌟 關鍵修正：確保主畫面的 padding-bottom 能容納「導覽列 (56px) + 安全區域 + 加號按鈕空間」
+    <div style={{ minHeight: "100vh", background: "var(--bg-base)", paddingBottom: isMobile ? "calc(140px + env(safe-area-inset-bottom))" : "2rem" }}>
       <Navbar />
       <main style={{ maxWidth: "1400px", margin: "0 auto", padding: isMobile ? "1.5rem 1.25rem" : "2rem 1.5rem" }}>
         
@@ -405,7 +405,6 @@ export default function HomePage() {
             
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.6rem" }}>
               <CustomSelect value={filterStatus} onChange={setFilterStatus} options={[{ value: "all", label: t("全部狀態", "All Status") }, { value: "available", label: t("可借用", "Available") }, { value: "borrowed", label: t("借出中", "Borrowed") }, { value: "overdue", label: t("逾期", "Overdue") }]} />
-              {/* 🌟 選單中加入新類別 */}
               <CustomSelect value={filterCategory} onChange={setFilterCategory} options={[
                 { value: "all", label: t("全部類別", "All") }, 
                 { value: "laptop", label: t("筆電", "Laptop") }, 
@@ -540,7 +539,18 @@ export default function HomePage() {
         )}
       </main>
 
-      <button onClick={() => { haptic(50); setEditAsset(null); setShowForm(true); }} style={{ position: "fixed", bottom: isMobile ? "76px" : "32px", right: isMobile ? "16px" : "32px", width: "56px", height: "56px", borderRadius: "50%", background: "var(--accent)", color: "var(--bg-base)", boxShadow: "var(--shadow-lg)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 40 }} className="btn-spring fab-btn">
+      {/* 🌟 關鍵修正：透過 calc 動態計算，讓加號按鈕剛好懸浮在導覽列 (56px) 上方約 16px 處 */}
+      <button onClick={() => { haptic(50); setEditAsset(null); setShowForm(true); }} style={{ 
+        position: "fixed", 
+        bottom: isMobile ? "calc(72px + env(safe-area-inset-bottom))" : "32px", 
+        right: isMobile ? "16px" : "32px", 
+        width: "56px", height: "56px", 
+        borderRadius: "50%", 
+        background: "var(--accent)", color: "var(--bg-base)", 
+        boxShadow: "var(--shadow-lg)", 
+        display: "flex", alignItems: "center", justifyContent: "center", 
+        cursor: "pointer", zIndex: 40 
+      }} className="btn-spring fab-btn">
         <Plus size={26} strokeWidth={2.5} className="fab-icon" />
       </button>
 

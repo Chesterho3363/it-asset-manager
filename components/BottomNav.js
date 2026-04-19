@@ -27,7 +27,8 @@ export default function BottomNav() {
       display: "flex",
       justifyContent: "space-around",
       alignItems: "center",
-      // 🌟 關鍵修正：底部加上安全區域的高度，完美避開 iOS 橫條
+      // 🌟 關鍵修正：鎖定按鈕區高度為 56px，加上 iOS 底部安全距離
+      height: "calc(56px + env(safe-area-inset-bottom))", 
       paddingBottom: "env(safe-area-inset-bottom)",
       zIndex: 100,
     }}>
@@ -39,11 +40,12 @@ export default function BottomNav() {
             onClick={() => { haptic(); router.push(item.path); }}
             style={{
               flex: 1,
+              height: "100%", // 讓按鈕垂直填滿 56px 的空間
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
+              justifyContent: "center", // 確保 icon 和文字完美置中
               gap: "4px",
-              padding: "0.75rem 0", // 維持原本的按鈕高度
               background: "transparent",
               border: "none",
               color: isActive ? "var(--text-primary)" : "var(--text-muted)",
