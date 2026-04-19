@@ -6,27 +6,37 @@
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Noto Sans TC', monospace;
 }
 
+/* 🌟 科技藍深色主題與配色 */
 [data-theme="dark"] {
-  --bg-base:      #121212;
-  --bg-surface:   #1e1e1e;
-  --bg-elevated:  #2c2c2c;
-  --bg-hover:     #333333;
-  --border:       rgba(255, 255, 255, 0.12);
-  --border-focus: rgba(255, 255, 255, 0.30);
-  --text-primary: rgba(255, 255, 255, 0.86);
-  --text-secondary: rgba(255, 255, 255, 0.60);
-  --text-muted:   rgba(255, 255, 255, 0.38);
-  --accent:       #e4e4e7;
-  --accent-soft:  rgba(228, 228, 231, 0.15);
-  --success:      #81c784;
-  --success-soft: rgba(129, 199, 132, 0.15);
-  --warning:      #ffb74d;
-  --warning-soft: rgba(255, 183, 77, 0.15);
-  --danger:       #e57373;
-  --danger-soft:  rgba(229, 115, 115, 0.15);
+  --bg-base:      #020617; 
+  --bg-surface:   #0f172a;
+  --bg-elevated:  #1e293b;
+  --bg-hover:     #334155;
+  --border:       rgba(255, 255, 255, 0.1);
+  --border-focus: rgba(255, 255, 255, 0.25);
+  --text-primary: rgba(255, 255, 255, 0.9);
+  --text-secondary: rgba(255, 255, 255, 0.65);
+  --text-muted:   rgba(255, 255, 255, 0.4);
+  --accent:       #38bdf8; 
+  --accent-soft:  rgba(56, 189, 248, 0.15);
+  --success:      #4ade80;
+  --success-soft: rgba(74, 222, 128, 0.15);
+  --warning:      #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.15);
+  --danger:       #f87171;
+  --danger-soft:  rgba(248, 113, 113, 0.15);
   --shadow:       0 4px 20px rgba(0, 0, 0, 0.5);
   --shadow-lg:    0 12px 40px rgba(0, 0, 0, 0.7);
   --skeleton:     rgba(255, 255, 255, 0.05);
+}
+
+/* 🌟 深色模式專屬：高級感網格背景紋理 */
+[data-theme="dark"] body {
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: center top;
 }
 
 [data-theme="light"] {
