@@ -13,7 +13,7 @@ export function Providers({ children }) {
   const [lang, setLang] = useState("zh");
   const [customName, setCustomName] = useState("");
   
-  // 🌟 新增：專案追蹤模式 (鈴鐺開關)
+  // 🌟 專案追蹤模式 (鈴鐺開關)
   const [showOnlyIssues, setShowOnlyIssues] = useState(false);
 
   useEffect(() => {
@@ -45,11 +45,6 @@ export function Providers({ children }) {
     localStorage.setItem("customName", name);
   };
 
-  // 🌟 新增：切換專案追蹤模式的函數
-  const toggleShowOnlyIssues = () => {
-    setShowOnlyIssues(prev => !prev);
-  };
-
   const t = (zh, en) => (lang === "zh" ? zh : en);
 
   return (
@@ -58,7 +53,7 @@ export function Providers({ children }) {
         theme, toggleTheme, 
         lang, toggleLang, t, 
         customName, updateCustomName,
-        showOnlyIssues, toggleShowOnlyIssues // 🌟 傳遞給全站使用
+        showOnlyIssues, setShowOnlyIssues // 🌟 修正這裡！匯出 setShowOnlyIssues 來跟 Navbar 對接
       }}>
         {children}
       </AppContext.Provider>

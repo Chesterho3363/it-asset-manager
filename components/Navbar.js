@@ -2,15 +2,16 @@
 import { Bell, Settings, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useApp } from "../app/providers"; // 🌟 重新匯入 useApp 來取得自訂名稱
+import { useApp } from "../app/providers";
 
 export default function Navbar() {
   const router = useRouter();
   const { data: session } = useSession();
-  const { customName } = useApp();
+  
+  // 🌟 把 showOnlyIssues 和切換函數一起拿出來
+  const { customName, showOnlyIssues, setShowOnlyIssues } = useApp();
 
-  // 🌟 自動判斷要顯示的名稱（自訂名稱優先，再來是 Google 暱稱，最後是訪客）
-  const displayName = session ? (customName || session.user.name) : "Hi, Guest";
+  const displayName = session ? (customName || session.user.name) : "Guest";
 
   return (
     <nav style={{
@@ -29,7 +30,7 @@ export default function Navbar() {
       justifyContent: "space-between",
       alignItems: "center",
     }}>
-      {/* 🌟 左側：顯示自動動態名稱 */}
+      {/* 左側：純名稱 */}
       <div style={{ fontSize: "1.25rem", fontWeight: 800, fontFamily: "var(--font-display)", letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
         {displayName}
       </div>
@@ -45,10 +46,30 @@ export default function Navbar() {
         border: "1px solid var(--border)",
         boxShadow: "0 2px 10px rgba(0,0,0,0.2)"
       }}>
-        <button style={{ position: "relative", padding: "0.4rem", background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer", outline: "none", WebkitTapHighlightColor: "transparent" }}>
+        
+        {/* 🌟 修復：把被覆蓋掉的點擊事件加回來，並加上開啟時的狀態樣式 */}
+        <button 
+          onClick={() => setShowOnlyIssues && setShowOnlyIssues(!showOnlyIssues)}
+          style={{ 
+            position: "relative", 
+            padding: "0.4rem", 
+            background: showOnlyIssues ? "var(--danger-soft)" : "transparent", 
+            border: "none", 
+            borderRadius: "50%",
+            color: showOnlyIssues ? "var(--danger)" : "var(--text-secondary)", 
+            cursor: "pointer", 
+            outline: "none", 
+            WebkitTapHighlightColor: "transparent",
+            transition: "all 0.2s"
+          }}
+        >
           <Bell size={18} />
-          <span style={{ position: "absolute", top: "4px", right: "4px", width: "6px", height: "6px", background: "var(--danger)", borderRadius: "50%" }} />
+          {/* 如果沒有開啟過濾模式，才顯示小紅點提示有 Issue */}
+          {!showOnlyIssues && (
+            <span style={{ position: "absolute", top: "4px", right: "4px", width: "6px", height: "6px", background: "var(--danger)", borderRadius: "50%" }} />
+          )}
         </button>
+
         <button onClick={() => router.push('/settings')} style={{ padding: "0.4rem", background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer", outline: "none", WebkitTapHighlightColor: "transparent" }}>
           <Settings size={18} />
         </button>
