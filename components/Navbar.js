@@ -2,15 +2,15 @@
 import { Bell, Settings, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useApp } from "../app/providers";
+import { useApp } from "../app/providers"; // 🌟 重新匯入 useApp 來取得自訂名稱
 
 export default function Navbar() {
   const router = useRouter();
   const { data: session } = useSession();
   const { customName } = useApp();
 
-  // 自動判斷要顯示的名稱（自訂名稱優先，再來是 Google 暱稱，最後是訪客）
-  const displayName = session ? (customName || session.user.name) : "Guest";
+  // 🌟 自動判斷要顯示的名稱（自訂名稱優先，再來是 Google 暱稱，最後是訪客）
+  const displayName = session ? (customName || session.user.name) : "Hi, Guest";
 
   return (
     <nav style={{
@@ -29,14 +29,9 @@ export default function Navbar() {
       justifyContent: "space-between",
       alignItems: "center",
     }}>
-      {/* 🌟 左側：專屬問候語與標題 */}
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        <div className="animate-fade-in" style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 600, marginBottom: "2px" }}>
-          Hi, {displayName} 👋
-        </div>
-        <div style={{ fontSize: "1.25rem", fontWeight: 800, fontFamily: "var(--font-display)", letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
-          Your Assets
-        </div>
+      {/* 🌟 左側：顯示自動動態名稱 */}
+      <div style={{ fontSize: "1.25rem", fontWeight: 800, fontFamily: "var(--font-display)", letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
+        {displayName}
       </div>
 
       {/* 右側：功能選單 */}
