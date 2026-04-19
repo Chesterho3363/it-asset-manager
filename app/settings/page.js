@@ -9,13 +9,12 @@ import {
 } from "lucide-react";
 import { useApp } from "../providers";
 
-// 🌟 同步兩個新類別
 const categoryIcons = {
   laptop:  { icon: Laptop,    label: ["筆電", "Laptop"], color: "var(--accent)", softColor: "var(--accent-soft)" },
   monitor: { icon: Monitor,   label: ["螢幕", "Monitor"], color: "#f59e0b", softColor: "rgba(245, 158, 11, 0.15)" },
   docking: { icon: Plug,      label: ["Docking", "Docking"], color: "#10b981", softColor: "rgba(16, 185, 129, 0.15)" }, 
-  office:  { icon: Briefcase, label: ["辦公室用品", "Office"], color: "#8b5cf6", softColor: "rgba(139, 92, 246, 0.15)" }, // 🌟 新增
-  semi:    { icon: Layers,    label: ["半成品", "Semi-finished"], color: "#06b6d4", softColor: "rgba(6, 182, 212, 0.15)" }, // 🌟 新增
+  office:  { icon: Briefcase, label: ["辦公室用品", "Office"], color: "#8b5cf6", softColor: "rgba(139, 92, 246, 0.15)" }, 
+  semi:    { icon: Layers,    label: ["半成品", "Semi-finished"], color: "#06b6d4", softColor: "rgba(6, 182, 212, 0.15)" }, 
   other:   { icon: Package,   label: ["其他", "Other"], color: "#71717a", softColor: "rgba(113, 113, 122, 0.15)" },
 };
 
@@ -73,7 +72,16 @@ export default function SettingsPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg-base)", color: "var(--text-primary)", padding: "1.5rem" }}>
+    <div style={{ 
+      minHeight: "100vh", 
+      background: "var(--bg-base)", 
+      color: "var(--text-primary)", 
+      // 🌟 關鍵修正：加入 env(safe-area-inset-top) 自動閃避 iOS 頂部時間與瀏海
+      paddingTop: "calc(1.5rem + env(safe-area-inset-top))",
+      paddingLeft: "1.5rem",
+      paddingRight: "1.5rem",
+      paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))"
+    }}>
       <header style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "2rem" }}>
         <button onClick={() => window.location.href = "/"} style={{ width: "40px", height: "40px", borderRadius: "12px", background: "var(--bg-surface)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--text-primary)", outline: "none", WebkitTapHighlightColor: "transparent" }}>
           <ChevronLeft size={20} />
