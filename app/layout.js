@@ -1,6 +1,14 @@
 import { Providers } from "./providers";
 import "./globals.css";
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover', // 🌟 關鍵：允許網頁延伸到瀏海與底部邊界
+};
+
 export const metadata = {
   title: "Smart Asset Manager",
   description: "企業 IT 資產借還管理系統",
