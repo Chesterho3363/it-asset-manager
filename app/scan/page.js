@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ScanLine, CheckCircle2, AlertCircle, Loader2, ArrowLeft, QrCode, Barcode } from "lucide-react";
 import Navbar from "../../components/Navbar";
@@ -16,7 +16,8 @@ function parseSpecs(noteStr) {
   } catch { return { text: noteStr, specs: {} }; }
 }
 
-export default function ScanPage() {
+// 🌟 將原本的掃描邏輯抽離成子元件
+function ScanContent() {
   const { t } = useApp();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,7 +40,7 @@ export default function ScanPage() {
   useEffect(() => {
     const code = searchParams.get("code");
     if (code) fetchByCode(code);
-  }, []);
+  }, [searchParams]);
 
   const fetchByCode = async (code) => {
     setError("");
@@ -56,7 +57,7 @@ export default function ScanPage() {
 
   const handleScanSuccess = (text) => {
     stopCamera();
-    if (navigator.vibrate) navigator.vibrate([30, 50, 30]); // 成功時給予清脆的雙震動回饋
+    if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
 
     try {
       const url = new URL(text);
@@ -65,9 +66,7 @@ export default function ScanPage() {
         fetchByCode(codeParam);
         return;
       }
-    } catch (e) {
-      // 若解析網址失敗，代表這是一般的傳統純文字條碼，直接拿來查詢！
-    }
+    } catch (e) {}
     
     fetchByCode(text);
   };
@@ -78,7 +77,6 @@ export default function ScanPage() {
     scanningRef.current = true;
 
     try {
-      // 1. 我們自己精準控制相機串流，要求高畫質與連續對焦
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: "environment", 
@@ -92,11 +90,9 @@ export default function ScanPage() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute("playsinline", true);
-        // 安全地啟動播放，避免 Promise 卡死
         videoRef.current.play().catch(e => console.warn("Video play interrupted:", e));
       }
 
-      // 2. 高效的掃描分析迴圈 (完全分離影像播放與條碼解析)
       const scanLoop = async () => {
         if (!scanningRef.current || !videoRef.current || videoRef.current.readyState !== 4) {
           if (scanningRef.current) requestAnimationFrame(scanLoop);
@@ -104,7 +100,6 @@ export default function ScanPage() {
         }
 
         try {
-          // 🌟 方案 A：使用硬體加速的 Native BarcodeDetector (iOS 17+ / Chrome Android 支援)
           if ('BarcodeDetector' in window) {
             if (!readerRef.current) {
               const formats = currentType === 'qr' ? ['qr_code'] : ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a'];
@@ -116,7 +111,6 @@ export default function ScanPage() {
               return;
             }
           } 
-          // 🌟 方案 B：舊版瀏覽器的平滑降級處理 (jsQR / ZXing)
           else {
             if (currentType === 'qr') {
               const jsQR = (await import("jsqr")).default;
@@ -132,14 +126,12 @@ export default function ScanPage() {
                 return;
               }
             } else {
-              // ZXing 一維條碼 Fallback
               const { BrowserMultiFormatReader, DecodeHintType } = await import('@zxing/library');
               if (!readerRef.current) {
                 const hints = new Map();
                 hints.set(DecodeHintType.TRY_HARDER, true);
                 readerRef.current = new BrowserMultiFormatReader(hints);
               }
-              // 透過 decodeOnce 安全讀取單幀，不干擾主影片串流
               const result = await readerRef.current.decodeOnceFromVideoElement(videoRef.current);
               if (result) {
                 handleScanSuccess(result.getText());
@@ -147,23 +139,18 @@ export default function ScanPage() {
               }
             }
           }
-        } catch(e) {
-          // 未掃描到條碼時會報錯，這是正常的，直接略過即可
-        }
+        } catch(e) {}
 
         if (scanningRef.current) {
-          // 若為 QR Code 則快速掃描 (100ms)，一維條碼則稍微降速以保持畫面流暢 (250ms)
           setTimeout(scanLoop, currentType === 'qr' ? 100 : 250);
         }
       };
 
-      // 確保畫面準備好後才啟動掃描引擎
       videoRef.current.onloadeddata = () => {
         scanLoop();
       };
 
     } catch (err) {
-      console.error("Camera Init Error:", err);
       setError(t("無法開啟相機，請確認已授予權限", "Cannot access camera. Please allow permission."));
       setScanning(false);
       scanningRef.current = false;
@@ -187,7 +174,6 @@ export default function ScanPage() {
     setScanType(type);
     if (scanning) {
       stopCamera();
-      // 等待舊鏡頭資源釋放後再重啟
       setTimeout(() => startCamera(type), 300);
     }
   };
@@ -214,10 +200,8 @@ export default function ScanPage() {
   const noteText = parsedNote.text;
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg-base)", paddingBottom: "80px" }}>
-      <Navbar />
+    <>
       <main style={{ maxWidth: "600px", margin: "0 auto", padding: "1.5rem 1rem" }}>
-
         {mode === "scan" ? (
           <>
             <div className="animate-fade-in" style={{ marginBottom: "1.5rem" }}>
@@ -260,7 +244,6 @@ export default function ScanPage() {
                       transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
                       overflow: "hidden"
                     }}>
-                       {/* 🌟 雷射線 */}
                        <div className="laser-line" />
                     </div>
                   </div>
@@ -299,7 +282,6 @@ export default function ScanPage() {
             </button>
           </>
         ) : (
-          /* Result View */
           <>
             <button onClick={reset} style={{
               display: "flex", alignItems: "center", gap: "0.4rem",
@@ -436,7 +418,6 @@ export default function ScanPage() {
           </>
         )}
       </main>
-
       {showForm && asset && (
         <AssetForm
           editData={asset}
@@ -444,11 +425,21 @@ export default function ScanPage() {
           onSuccess={() => { setShowForm(false); fetchByCode(asset.assetCode); }}
         />
       )}
+    </>
+  );
+}
 
+// 🌟 主頁面加上 Suspense 封裝，解決編譯錯誤
+export default function ScanPage() {
+  return (
+    <div style={{ minHeight: "100vh", background: "var(--bg-base)", paddingBottom: "80px" }}>
+      <Navbar />
+      <Suspense fallback={<div style={{ padding: "4rem 2rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.9rem", fontWeight: 600 }}>載入中 (Loading...)</div>}>
+        <ScanContent />
+      </Suspense>
       <BottomNav />
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        /* 🌟 GPU 硬體加速的雷射光條動畫，保證 120Hz 絲滑不掉幀 */
         @keyframes scan-laser {
           0% { transform: translateY(0); opacity: 0; }
           15% { opacity: 1; }
