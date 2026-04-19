@@ -120,9 +120,16 @@ body {
 .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-/* 🌟 強制 iOS 在 PWA 模式下喚醒鍵盤與允許文字選取 */
+/* 🌟 終極 iOS 鍵盤喚醒與防縮放修復 */
+html, body {
+  -webkit-user-select: auto !important;
+  user-select: auto !important;
+}
+
 input, textarea, select {
-  -webkit-user-select: text !important;
-  user-select: text !important;
-  -webkit-touch-callout: default !important;
+  -webkit-appearance: none !important; /* 解除 iOS 系統預設 UI 鎖定 */
+  -webkit-user-select: auto !important;
+  user-select: auto !important;
+  cursor: text !important;
+  font-size: 16px !important; /* 🌟 iOS 規定輸入框必須大於等於 16px，否則容易產生聚焦 Bug */
 }
