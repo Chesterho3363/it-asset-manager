@@ -2,8 +2,6 @@
 import { useState, createContext, useContext, useEffect } from "react";
 import { SessionProvider } from "next-auth/react";
 
-// ─── Global Context ───────────────────────────────────────────────────────────
-// 這裡可以不用給預設值，因為我們在 Provider 裡面都會給
 export const AppContext = createContext();
 
 export function useApp() {
@@ -13,13 +11,14 @@ export function useApp() {
 export function Providers({ children }) {
   const [theme, setTheme] = useState("dark");
   const [lang, setLang] = useState("zh");
-  // 🌟 1. 新增自訂名稱的狀態
   const [customName, setCustomName] = useState("");
+  
+  // 🌟 新增：專案追蹤模式 (鈴鐺開關)
+  const [showOnlyIssues, setShowOnlyIssues] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme") || "dark";
     const savedLang = localStorage.getItem("lang") || "zh";
-    // 🌟 2. 啟動時讀取存檔的自訂名稱
     const savedName = localStorage.getItem("customName") || "";
 
     setTheme(savedTheme);
@@ -41,18 +40,26 @@ export function Providers({ children }) {
     localStorage.setItem("lang", nextLang);
   };
 
-  // 🌟 3. 新增更新名稱的函數，同步寫入 localStorage
   const updateCustomName = (name) => {
     setCustomName(name);
     localStorage.setItem("customName", name);
+  };
+
+  // 🌟 新增：切換專案追蹤模式的函數
+  const toggleShowOnlyIssues = () => {
+    setShowOnlyIssues(prev => !prev);
   };
 
   const t = (zh, en) => (lang === "zh" ? zh : en);
 
   return (
     <SessionProvider>
-      {/* 🌟 4. 把 customName 跟 updateCustomName 傳遞給全站 */}
-      <AppContext.Provider value={{ theme, toggleTheme, lang, toggleLang, t, customName, updateCustomName }}>
+      <AppContext.Provider value={{ 
+        theme, toggleTheme, 
+        lang, toggleLang, t, 
+        customName, updateCustomName,
+        showOnlyIssues, toggleShowOnlyIssues // 🌟 傳遞給全站使用
+      }}>
         {children}
       </AppContext.Provider>
     </SessionProvider>

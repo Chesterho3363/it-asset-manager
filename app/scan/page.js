@@ -1,13 +1,12 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ScanLine, CheckCircle2, AlertCircle, Loader2, ArrowLeft } from "lucide-react";
+import { ScanLine, CheckCircle2, AlertCircle, Loader2, ArrowLeft, QrCode, Barcode } from "lucide-react";
 import Navbar from "../../components/Navbar";
 import BottomNav from "../../components/BottomNav";
 import AssetForm from "../../components/AssetForm";
 import { useApp } from "../providers";
 
-// 🌟 新增：解析規格與備註的工具函式
 function parseSpecs(noteStr) {
   if (!noteStr) return { text: "", specs: {} };
   try {
@@ -21,15 +20,21 @@ export default function ScanPage() {
   const { t } = useApp();
   const router = useRouter();
   const searchParams = useSearchParams();
+  
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const readerRef = useRef(null);
+  const scanningRef = useRef(false);
 
   const [mode, setMode] = useState("scan");
   const [scanning, setScanning] = useState(false);
+  const [scanType, setScanType] = useState("qr"); 
   const [asset, setAsset] = useState(null);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [returning, setReturning] = useState(false);
+
+  const haptic = (v = 40) => { if (navigator.vibrate) navigator.vibrate(v); };
 
   useEffect(() => {
     const code = searchParams.get("code");
@@ -49,57 +54,143 @@ export default function ScanPage() {
     }
   };
 
-  const startCamera = async () => {
-    setScanning(true);
-    setError("");
+  const handleScanSuccess = (text) => {
+    stopCamera();
+    if (navigator.vibrate) navigator.vibrate([30, 50, 30]); // 成功時給予清脆的雙震動回饋
+
     try {
+      const url = new URL(text);
+      const codeParam = url.searchParams.get("code");
+      if (codeParam) {
+        fetchByCode(codeParam);
+        return;
+      }
+    } catch (e) {
+      // 若解析網址失敗，代表這是一般的傳統純文字條碼，直接拿來查詢！
+    }
+    
+    fetchByCode(text);
+  };
+
+  const startCamera = async (currentType = scanType) => {
+    setError("");
+    setScanning(true);
+    scanningRef.current = true;
+
+    try {
+      // 1. 我們自己精準控制相機串流，要求高畫質與連續對焦
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: { 
+          facingMode: "environment", 
+          width: { ideal: 1920 }, 
+          height: { ideal: 1080 },
+          advanced: [{ focusMode: "continuous" }] 
+        }
       });
       streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
 
-      const jsQR = (await import("jsqr")).default;
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", true);
+        // 安全地啟動播放，避免 Promise 卡死
+        videoRef.current.play().catch(e => console.warn("Video play interrupted:", e));
+      }
 
-      const scan = () => {
-        if (!videoRef.current || videoRef.current.readyState !== 4) {
-          requestAnimationFrame(scan);
+      // 2. 高效的掃描分析迴圈 (完全分離影像播放與條碼解析)
+      const scanLoop = async () => {
+        if (!scanningRef.current || !videoRef.current || videoRef.current.readyState !== 4) {
+          if (scanningRef.current) requestAnimationFrame(scanLoop);
           return;
         }
-        canvas.width  = videoRef.current.videoWidth;
-        canvas.height = videoRef.current.videoHeight;
-        ctx.drawImage(videoRef.current, 0, 0);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height);
-        if (code) {
-          stopCamera();
-          try {
-            const url = new URL(code.data);
-            const assetCode = url.searchParams.get("code");
-            if (assetCode) fetchByCode(assetCode);
-            else setError(t("QR Code 格式不符", "Invalid QR Code format"));
-          } catch {
-            setError(t("無法解析 QR Code", "Cannot parse QR Code"));
+
+        try {
+          // 🌟 方案 A：使用硬體加速的 Native BarcodeDetector (iOS 17+ / Chrome Android 支援)
+          if ('BarcodeDetector' in window) {
+            if (!readerRef.current) {
+              const formats = currentType === 'qr' ? ['qr_code'] : ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a'];
+              readerRef.current = new window.BarcodeDetector({ formats });
+            }
+            const barcodes = await readerRef.current.detect(videoRef.current);
+            if (barcodes && barcodes.length > 0) {
+              handleScanSuccess(barcodes[0].rawValue);
+              return;
+            }
+          } 
+          // 🌟 方案 B：舊版瀏覽器的平滑降級處理 (jsQR / ZXing)
+          else {
+            if (currentType === 'qr') {
+              const jsQR = (await import("jsqr")).default;
+              const canvas = document.createElement("canvas");
+              canvas.width = videoRef.current.videoWidth;
+              canvas.height = videoRef.current.videoHeight;
+              const ctx = canvas.getContext("2d", { willReadFrequently: true });
+              ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+              const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const code = jsQR(imgData.data, imgData.width, imgData.height);
+              if (code) {
+                handleScanSuccess(code.data);
+                return;
+              }
+            } else {
+              // ZXing 一維條碼 Fallback
+              const { BrowserMultiFormatReader, DecodeHintType } = await import('@zxing/library');
+              if (!readerRef.current) {
+                const hints = new Map();
+                hints.set(DecodeHintType.TRY_HARDER, true);
+                readerRef.current = new BrowserMultiFormatReader(hints);
+              }
+              // 透過 decodeOnce 安全讀取單幀，不干擾主影片串流
+              const result = await readerRef.current.decodeOnceFromVideoElement(videoRef.current);
+              if (result) {
+                handleScanSuccess(result.getText());
+                return;
+              }
+            }
           }
-        } else {
-          requestAnimationFrame(scan);
+        } catch(e) {
+          // 未掃描到條碼時會報錯，這是正常的，直接略過即可
+        }
+
+        if (scanningRef.current) {
+          // 若為 QR Code 則快速掃描 (100ms)，一維條碼則稍微降速以保持畫面流暢 (250ms)
+          setTimeout(scanLoop, currentType === 'qr' ? 100 : 250);
         }
       };
-      videoRef.current.onloadedmetadata = () => requestAnimationFrame(scan);
-    } catch {
-      setError(t("無法開啟相機，請確認已授予相機權限", "Cannot access camera. Please allow camera permission."));
+
+      // 確保畫面準備好後才啟動掃描引擎
+      videoRef.current.onloadeddata = () => {
+        scanLoop();
+      };
+
+    } catch (err) {
+      console.error("Camera Init Error:", err);
+      setError(t("無法開啟相機，請確認已授予權限", "Cannot access camera. Please allow permission."));
       setScanning(false);
+      scanningRef.current = false;
     }
   };
 
-  const stopCamera = () => {
-    streamRef.current?.getTracks().forEach(t => t.stop());
+  const stopCamera = useCallback(() => {
+    scanningRef.current = false;
     setScanning(false);
-  };
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    readerRef.current = null;
+  }, []);
 
-  useEffect(() => () => stopCamera(), []);
+  useEffect(() => () => stopCamera(), [stopCamera]);
+
+  const handleTypeToggle = (type) => {
+    haptic();
+    setScanType(type);
+    if (scanning) {
+      stopCamera();
+      // 等待舊鏡頭資源釋放後再重啟
+      setTimeout(() => startCamera(type), 300);
+    }
+  };
 
   const handleReturn = async () => {
     if (!confirm(t(`確定歸還「${asset.assetCode}」？`, `Return "${asset.assetCode}"?`))) return;
@@ -118,7 +209,6 @@ export default function ScanPage() {
 
   const reset = () => { setMode("scan"); setAsset(null); setError(""); stopCamera(); };
 
-  // 解析目前掃描到的資產規格
   const parsedNote = parseSpecs(asset?.note);
   const specs = parsedNote.specs;
   const noteText = parsedNote.text;
@@ -130,67 +220,86 @@ export default function ScanPage() {
 
         {mode === "scan" ? (
           <>
-            <div style={{ marginBottom: "1.5rem" }}>
+            <div className="animate-fade-in" style={{ marginBottom: "1.5rem" }}>
               <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.6rem", fontWeight: 800, letterSpacing: "-0.03em" }}>
-                {t("掃描 QR Code", "Scan QR Code")}
+                {t("掃描資產條碼", "Scan Asset Barcode")}
               </h1>
               <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: "4px" }}>
-                {t("掃描貼在設備上的 QR Code 快速存取", "Scan the QR code on the device")}
+                {t("切換下方的掃描模式以精準辨識設備", "Switch modes below to identify devices")}
               </p>
             </div>
 
-            {/* Camera viewfinder */}
-            <div style={{
-              background: "var(--bg-surface)", border: "1px solid var(--border)",
+            <div className="animate-fade-in" style={{ display: "flex", background: "var(--bg-elevated)", padding: "4px", borderRadius: "14px", marginBottom: "1.25rem", border: "1px solid var(--border)" }}>
+              <button onClick={() => handleTypeToggle('qr')} style={{ flex: 1, padding: "0.6rem", borderRadius: "10px", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", background: scanType === 'qr' ? "var(--bg-surface)" : "transparent", color: scanType === 'qr' ? "var(--text-primary)" : "var(--text-muted)", fontWeight: 700, boxShadow: scanType === 'qr' ? "var(--shadow-sm)" : "none", transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)", cursor: "pointer", outline: "none", WebkitTapHighlightColor: "transparent" }}>
+                <QrCode size={18} /> {t("QR Code", "QR Code")}
+              </button>
+              <button onClick={() => handleTypeToggle('barcode')} style={{ flex: 1, padding: "0.6rem", borderRadius: "10px", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", background: scanType === 'barcode' ? "var(--bg-surface)" : "transparent", color: scanType === 'barcode' ? "var(--text-primary)" : "var(--text-muted)", fontWeight: 700, boxShadow: scanType === 'barcode' ? "var(--shadow-sm)" : "none", transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)", cursor: "pointer", outline: "none", WebkitTapHighlightColor: "transparent" }}>
+                <Barcode size={18} /> {t("一維條碼", "1D Barcode")}
+              </button>
+            </div>
+
+            <div className="animate-fade-in" style={{
+              background: scanning ? "#000" : "var(--bg-surface)", 
+              border: "1px solid var(--border)",
               borderRadius: "16px", overflow: "hidden", marginBottom: "1.25rem",
               aspectRatio: "1", position: "relative",
               display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "var(--shadow-sm)", transition: "background 0.3s ease"
             }}>
               {scanning ? (
                 <>
                   <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
                     <div style={{
-                      width: "60%", aspectRatio: "1",
+                      width: scanType === 'qr' ? "65%" : "85%", 
+                      aspectRatio: scanType === 'qr' ? "1/1" : "2.5/1",
                       border: "2px solid var(--accent)",
                       borderRadius: "12px",
-                      boxShadow: "0 0 0 9999px rgba(0,0,0,0.4)",
-                    }} />
+                      boxShadow: "0 0 0 9999px rgba(0,0,0,0.6)",
+                      position: "relative",
+                      transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+                      overflow: "hidden"
+                    }}>
+                       {/* 🌟 雷射線 */}
+                       <div className="laser-line" />
+                    </div>
                   </div>
-                  <div style={{ position: "absolute", bottom: "1rem", left: 0, right: 0, textAlign: "center", color: "#fff", fontSize: "0.8rem" }}>
-                    {t("將 QR Code 對準框框", "Align QR Code within the frame")}
+                  <div style={{ position: "absolute", bottom: "1.5rem", left: 0, right: 0, textAlign: "center", color: "#fff", fontSize: "0.85rem", fontWeight: 600, textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>
+                    {scanType === 'qr' ? t("請將 QR Code 對準框內", "Align QR Code within the frame") : t("請將條碼水平對準掃描線", "Align Barcode horizontally")}
                   </div>
                 </>
               ) : (
                 <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "2rem" }}>
                   <ScanLine size={48} style={{ margin: "0 auto 1rem", opacity: 0.3, display: "block" }} />
-                  <div style={{ fontSize: "0.9rem" }}>{t("點擊下方按鈕開始掃描", "Tap button below to start scanning")}</div>
+                  <div style={{ fontSize: "0.9rem", fontWeight: 600 }}>{t("點擊下方按鈕開啟鏡頭", "Tap button below to start")}</div>
                 </div>
               )}
             </div>
 
             {error && (
-              <div style={{ padding: "0.75rem 1rem", background: "var(--danger-soft)", border: "1px solid var(--danger)", borderRadius: "10px", color: "var(--danger)", fontSize: "0.85rem", marginBottom: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <div className="animate-fade-in" style={{ padding: "0.75rem 1rem", background: "var(--danger-soft)", border: "1px solid var(--danger)", borderRadius: "10px", color: "var(--danger)", fontSize: "0.85rem", marginBottom: "1rem", display: "flex", gap: "0.5rem", alignItems: "center", fontWeight: 600 }}>
                 <AlertCircle size={16} /> {error}
               </div>
             )}
 
-            <button onClick={scanning ? stopCamera : startCamera} style={{
-              width: "100%", padding: "0.875rem",
+            <button onClick={() => { haptic(); scanning ? stopCamera() : startCamera(); }} style={{
+              width: "100%", padding: "1rem",
               background: scanning ? "var(--danger)" : "var(--accent)",
-              border: "none", borderRadius: "12px",
+              border: "none", borderRadius: "14px",
               color: scanning ? "#fff" : "var(--bg-base)", 
-              fontSize: "1rem", 
+              fontSize: "1.05rem", 
               fontFamily: "var(--font-display)", 
-              cursor: "pointer", fontWeight: 600,
+              cursor: "pointer", fontWeight: 700,
               display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
-            }}>
+              boxShadow: "var(--shadow-sm)", transition: "all 0.2s",
+              outline: "none", WebkitTapHighlightColor: "transparent"
+            }} className="btn-spring">
               <ScanLine size={20} />
               {scanning ? t("停止掃描", "Stop Scanning") : t("開始掃描", "Start Scanning")}
             </button>
           </>
         ) : (
-          /* 🌟 美化後的 Result view */
+          /* Result View */
           <>
             <button onClick={reset} style={{
               display: "flex", alignItems: "center", gap: "0.4rem",
@@ -199,14 +308,14 @@ export default function ScanPage() {
               fontFamily: "var(--font-display)", 
               cursor: "pointer",
               marginBottom: "1.25rem",
+              outline: "none", WebkitTapHighlightColor: "transparent"
             }}>
               <ArrowLeft size={16} /> {t("重新掃描", "Scan Again")}
             </button>
 
             {asset && (
               <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                {/* Asset Card */}
-                <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "16px", padding: "1.5rem", boxShadow: "var(--shadow)" }}>
+                <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "16px", padding: "1.5rem", boxShadow: "var(--shadow-sm)" }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1.25rem" }}>
                     <div>
                       <div style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 800 }}>{asset.model || asset.assetCode}</div>
@@ -225,7 +334,6 @@ export default function ScanPage() {
                     </span>
                   </div>
 
-                  {/* 借用與取得資訊 */}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" }}>
                     {asset.borrower && (
                       <div style={{ background: "var(--bg-elevated)", borderRadius: "8px", padding: "0.6rem 0.75rem", border: "1px solid var(--border)" }}>
@@ -247,7 +355,6 @@ export default function ScanPage() {
                     )}
                   </div>
 
-                  {/* 專案追蹤 */}
                   {(asset.issueId || asset.doe) && (
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" }}>
                       {asset.issueId && (
@@ -265,7 +372,6 @@ export default function ScanPage() {
                     </div>
                   )}
 
-                  {/* 🌟 解析後的硬體規格網格 */}
                   {Object.keys(specs).length > 0 && (
                     <div style={{ paddingTop: "0.75rem", borderTop: "1px dashed var(--border)" }}>
                       <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
@@ -282,7 +388,6 @@ export default function ScanPage() {
                     </div>
                   )}
 
-                  {/* 解析後的備註 */}
                   {noteText && (
                     <div style={{ marginTop: "1rem", fontSize: "0.85rem", lineHeight: 1.6, color: "var(--text-secondary)", background: "var(--bg-elevated)", padding: "0.75rem 1rem", borderRadius: "8px", border: "1px solid var(--border)" }}>
                       📝 {noteText}
@@ -290,37 +395,39 @@ export default function ScanPage() {
                   )}
                 </div>
 
-                {/* Actions */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                   {asset.status === "borrowed" && (
                     <button onClick={handleReturn} disabled={returning} style={{
-                      width: "100%", padding: "0.875rem",
-                      background: "var(--success)", border: "none", borderRadius: "12px",
-                      color: "#fff", fontSize: "0.95rem", fontFamily: "var(--font-display)", 
-                      cursor: returning ? "not-allowed" : "pointer", fontWeight: 600,
+                      width: "100%", padding: "1rem",
+                      background: "var(--success)", border: "none", borderRadius: "14px",
+                      color: "#fff", fontSize: "1rem", fontFamily: "var(--font-display)", 
+                      cursor: returning ? "not-allowed" : "pointer", fontWeight: 700,
                       display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
-                      opacity: returning ? 0.6 : 1, boxShadow: "var(--shadow)"
-                    }}>
+                      opacity: returning ? 0.6 : 1, boxShadow: "var(--shadow-sm)",
+                      outline: "none", WebkitTapHighlightColor: "transparent"
+                    }} className="btn-spring">
                       {returning ? <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> : <CheckCircle2 size={18} />}
                       {t("確認歸還", "Confirm Return")}
                     </button>
                   )}
                   {asset.status === "available" && (
-                    <button onClick={() => setShowForm(true)} style={{
-                      width: "100%", padding: "0.875rem",
-                      background: "var(--accent)", border: "none", borderRadius: "12px",
-                      color: "var(--bg-base)", fontSize: "0.95rem", fontFamily: "var(--font-display)", 
-                      cursor: "pointer", fontWeight: 600, boxShadow: "var(--shadow)"
-                    }}>
+                    <button onClick={() => { haptic(); setShowForm(true); }} style={{
+                      width: "100%", padding: "1rem",
+                      background: "var(--accent)", border: "none", borderRadius: "14px",
+                      color: "var(--bg-base)", fontSize: "1rem", fontFamily: "var(--font-display)", 
+                      cursor: "pointer", fontWeight: 700, boxShadow: "var(--shadow-sm)",
+                      outline: "none", WebkitTapHighlightColor: "transparent"
+                    }} className="btn-spring">
                       {t("借出此設備", "Borrow This Device")}
                     </button>
                   )}
-                  <button onClick={() => setShowForm(true)} style={{
-                    width: "100%", padding: "0.75rem",
-                    background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "12px",
-                    color: "var(--text-secondary)", fontSize: "0.9rem", fontFamily: "var(--font-display)", 
-                    cursor: "pointer",
-                  }}>
+                  <button onClick={() => { haptic(); setShowForm(true); }} style={{
+                    width: "100%", padding: "0.875rem",
+                    background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "14px",
+                    color: "var(--text-secondary)", fontSize: "0.95rem", fontFamily: "var(--font-display)", 
+                    cursor: "pointer", fontWeight: 600,
+                    outline: "none", WebkitTapHighlightColor: "transparent"
+                  }} className="btn-spring">
                     {t("編輯資產資訊", "Edit Asset Info")}
                   </button>
                 </div>
@@ -339,7 +446,25 @@ export default function ScanPage() {
       )}
 
       <BottomNav />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        /* 🌟 GPU 硬體加速的雷射光條動畫，保證 120Hz 絲滑不掉幀 */
+        @keyframes scan-laser {
+          0% { transform: translateY(0); opacity: 0; }
+          15% { opacity: 1; }
+          85% { opacity: 1; }
+          100% { transform: translateY(220px); opacity: 0; }
+        }
+        .laser-line {
+          position: absolute;
+          top: 0; left: 5%; right: 5%;
+          height: 2px;
+          background: var(--accent);
+          box-shadow: 0 0 10px var(--accent), 0 0 20px var(--accent);
+          animation: scan-laser 2.5s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
+          will-change: transform, opacity;
+        }
+      `}</style>
     </div>
   );
 }

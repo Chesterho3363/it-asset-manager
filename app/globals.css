@@ -1,65 +1,45 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap');
-
 @import "tailwindcss";
 
 :root {
-  /* 主要字體：英文 Inter + 中文思源黑體 */
   --font-display: 'Inter', 'Noto Sans TC', sans-serif;
-  
-  /* 等寬字體：保留英文等寬特性，並在後方補上 'Noto Sans TC' 拯救中文字元 */
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Noto Sans TC', monospace;
 }
 
-/* ── 深色主題 (根據色彩科學優化的護眼配置) ── */
 [data-theme="dark"] {
-  /* 1. 背景：避免純黑，改用深灰色調降低視覺疲勞 */
   --bg-base:      #121212;
-  /* 2. 深度：捨棄陰影，利用不同的明度(Lightness)來建立卡片的立體層次 */
   --bg-surface:   #1e1e1e;
   --bg-elevated:  #2c2c2c;
   --bg-hover:     #333333;
-
-  /* 3. 邊框：使用透明度(rgba)讓邊框自然融入深色背景中 */
   --border:       rgba(255, 255, 255, 0.12);
   --border-focus: rgba(255, 255, 255, 0.30);
-
-  /* 4. 文字：絕對避免純白！根據 Material Design 規範，利用透明度建立閱讀層次 */
-  --text-primary: rgba(255, 255, 255, 0.86);   /* 高強調 (86%) */
-  --text-secondary: rgba(255, 255, 255, 0.60); /* 中強調 (60%) */
-  --text-muted:   rgba(255, 255, 255, 0.38);   /* 低強調 (38%) */
-  
-  /* 5. 狀態色：全面改用「不飽和粉彩/莫蘭迪色」，避免深色模式下的螢光刺眼感 */
-  --accent:       #e4e4e7;      /* 維持極簡風，但不使用純白，改用柔和的珍珠灰 (Zinc-200) */
+  --text-primary: rgba(255, 255, 255, 0.86);
+  --text-secondary: rgba(255, 255, 255, 0.60);
+  --text-muted:   rgba(255, 255, 255, 0.38);
+  --accent:       #e4e4e7;
   --accent-soft:  rgba(228, 228, 231, 0.15);
-  
-  --success:      #81c784;      /* 不飽和的薄荷綠 */
+  --success:      #81c784;
   --success-soft: rgba(129, 199, 132, 0.15);
-  
-  --warning:      #ffb74d;      /* 溫潤的暖橘/琥珀色 */
+  --warning:      #ffb74d;
   --warning-soft: rgba(255, 183, 77, 0.15);
-  
-  --danger:       #e57373;      /* 柔和不刺眼的珊瑚紅 */
+  --danger:       #e57373;
   --danger-soft:  rgba(229, 115, 115, 0.15);
-  
-  /* 深色模式下的陰影作用極低，故調弱透明度 */
   --shadow:       0 4px 20px rgba(0, 0, 0, 0.5);
   --shadow-lg:    0 12px 40px rgba(0, 0, 0, 0.7);
+  --skeleton:     rgba(255, 255, 255, 0.05);
 }
 
-/* ── 淺色主題 (純淨呼吸感，保持原樣) ── */
 [data-theme="light"] {
-  --bg-base:      #fcfcfc;
+  --bg-base:      #f4f5f7;
   --bg-surface:   #ffffff;
-  --bg-elevated:  #f4f4f5;
-  --bg-hover:     #f4f4f5;
-  --border:       #e4e4e7;
-  --border-focus: #a1a1aa;
+  --bg-elevated:  #f9fafb;
+  --bg-hover:     #f1f5f9;
+  --border:       #e2e8f0;
+  --border-focus: #cbd5e1;
   --text-primary: #171717;
   --text-secondary: #52525b;
   --text-muted:   #a1a1aa;
-  
-  /* 沉穩的高階色調 */
-  --accent:       #171717;      /* 淺色模式下的強調色改為極黑，打造黑白極簡風 */
+  --accent:       #171717;
   --accent-soft:  #f4f4f5;
   --success:      #059669;
   --success-soft: #05966915;
@@ -67,66 +47,75 @@
   --warning-soft: #d9770615;
   --danger:       #dc2626;
   --danger-soft:  #dc262615;
-  
   --shadow:       0 2px 10px rgba(0, 0, 0, 0.04);
   --shadow-lg:    0 10px 30px rgba(0, 0, 0, 0.08);
+  --skeleton:     #e2e8f0;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html {
-  scroll-behavior: smooth;
-}
-
+* { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   background-color: var(--bg-base);
   color: var(--text-primary);
-  font-family: var(--font-display); /* 全局套用乾淨的黑體 */
-  transition: background-color 0.3s ease, color 0.3s ease;
+  font-family: var(--font-display);
+  transition: background-color 0.3s ease;
   min-height: 100vh;
-  -webkit-font-smoothing: antialiased; /* 讓字體在 Mac/iOS 上渲染更銳利高質感 */
-  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ── 滾動條美化 (極簡化) ── */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
-
-/* ── 文字選取顏色 ── */
-::selection { background: var(--text-muted); color: var(--bg-base); }
-
-/* ── 動畫 ── */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+/* 🌟 1. 骨架屏閃爍動畫 */
+@keyframes shimmer {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+.skeleton {
+  background: var(--skeleton);
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
 }
 
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(-8px); }
-  to   { opacity: 1; transform: translateX(0); }
+/* 🌟 2. 彈簧物理曲線 (Spring Physics) */
+.btn-spring {
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.btn-spring:active {
+  transform: scale(0.92);
 }
 
-@keyframes pulse-soft {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.5; }
+/* 🌟 3. 雷達波呼吸燈 (逾期警示專用) */
+@keyframes radar {
+  0% { transform: scale(1); opacity: 0.8; }
+  80%, 100% { transform: scale(2.5); opacity: 0; }
+}
+.radar-dot {
+  position: relative;
+}
+.radar-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-color: inherit;
+  animation: radar 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  z-index: 0;
+}
+
+/* 🌟 4. 磁吸懸浮效果 (卡片專用) */
+.hover-lift {
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* 🌟 5. FAB 按鈕絲滑旋轉 */
+.fab-btn:hover .fab-icon {
+  transform: rotate(90deg);
+}
+.fab-icon {
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.animate-slide-in { animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
-
-/* ── 骨架屏與列表延遲動畫 ── */
-.stagger > * { opacity: 0; animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.stagger > *:nth-child(1) { animation-delay: 0.03s; }
-.stagger > *:nth-child(2) { animation-delay: 0.06s; }
-.stagger > *:nth-child(3) { animation-delay: 0.09s; }
-.stagger > *:nth-child(4) { animation-delay: 0.12s; }
-.stagger > *:nth-child(5) { animation-delay: 0.15s; }
-.stagger > *:nth-child(6) { animation-delay: 0.18s; }
-.stagger > *:nth-child(n+7) { animation-delay: 0.2s; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }

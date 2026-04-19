@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
+    "@zxing/library": "^0.21.3",
     "jsqr": "^1.4.0",
     "lucide-react": "^1.8.0",
     "next": "16.2.3",
