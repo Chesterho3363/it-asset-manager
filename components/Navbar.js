@@ -7,8 +7,6 @@ import { useApp } from "../app/providers";
 export default function Navbar() {
   const router = useRouter();
   const { data: session } = useSession();
-  
-  // 🌟 把 showOnlyIssues 和切換函數一起拿出來
   const { customName, showOnlyIssues, setShowOnlyIssues } = useApp();
 
   const displayName = session ? (customName || session.user.name) : "Guest";
@@ -47,7 +45,6 @@ export default function Navbar() {
         boxShadow: "0 2px 10px rgba(0,0,0,0.2)"
       }}>
         
-        {/* 🌟 修復：把被覆蓋掉的點擊事件加回來，並加上開啟時的狀態樣式 */}
         <button 
           onClick={() => setShowOnlyIssues && setShowOnlyIssues(!showOnlyIssues)}
           style={{ 
@@ -64,16 +61,30 @@ export default function Navbar() {
           }}
         >
           <Bell size={18} />
-          {/* 如果沒有開啟過濾模式，才顯示小紅點提示有 Issue */}
-          {!showOnlyIssues && (
-            <span style={{ position: "absolute", top: "4px", right: "4px", width: "6px", height: "6px", background: "var(--danger)", borderRadius: "50%" }} />
-          )}
         </button>
 
         <button onClick={() => router.push('/settings')} style={{ padding: "0.4rem", background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer", outline: "none", WebkitTapHighlightColor: "transparent" }}>
           <Settings size={18} />
         </button>
-        <div style={{ width: "30px", height: "30px", borderRadius: "50%", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+
+        {/* 🌟 修改：為頭像區塊加入 onClick 與指標，讓它也具備按鈕功能 */}
+        <div 
+          onClick={() => router.push('/settings')}
+          style={{ 
+            width: "30px", 
+            height: "30px", 
+            borderRadius: "50%", 
+            background: "var(--bg-elevated)", 
+            display: "flex", 
+            alignItems: "center", 
+            justifyContent: "center", 
+            overflow: "hidden",
+            cursor: "pointer",           /* 讓滑鼠變成手指形狀 */
+            transition: "opacity 0.2s"   /* 加入轉場動畫 */
+          }}
+          onMouseEnter={e => e.currentTarget.style.opacity = 0.8}
+          onMouseLeave={e => e.currentTarget.style.opacity = 1}
+        >
           {session?.user?.image ? (
             <img src={session.user.image} alt="User" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           ) : (

@@ -58,7 +58,16 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { assetCode } = body;
+    const { assetCode, category } = body; // 🌟 抓出 category
+
+    // 🌟 關鍵修正：後端類別驗證，補上 office 與 semi
+    const allowedCategories = ["laptop", "monitor", "docking", "other", "office", "semi"];
+    if (category && !allowedCategories.includes(category)) {
+      return NextResponse.json({ 
+        success: false, 
+        error: `category 必須為以下其一 : ${allowedCategories.join(", ")}` 
+      }, { status: 400 });
+    }
 
     if (!assetCode?.trim()) {
       return NextResponse.json({ success: false, error: "assetCode 為必填" }, { status: 400 });
