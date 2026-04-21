@@ -3,8 +3,8 @@ import { useState, useEffect } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { 
-  ChevronLeft, Moon, Sun, Languages, LogOut, User, 
-  CheckCircle2, ShieldAlert, Users, ChevronDown, 
+  ChevronLeft, Moon, Sun, Languages, User, 
+  ShieldAlert, Users, ChevronDown, Edit3,
   Laptop, Monitor, Plug, Package, Briefcase, Layers 
 } from "lucide-react";
 import { useApp } from "../providers";
@@ -19,8 +19,8 @@ const categoryIcons = {
 };
 
 export default function SettingsPage() {
-  const { data: session, status } = useSession();
-  const { theme, toggleTheme, lang, toggleLang, t, customName, updateCustomName } = useApp();
+  const { data: session } = useSession();
+  const { theme, toggleTheme, lang, toggleLang, t, customName, updateCustomName, userAliases, updateUserAlias } = useApp();
   const router = useRouter();
 
   const [adminViewAll, setAdminViewAll] = useState(true);
@@ -73,14 +73,8 @@ export default function SettingsPage() {
 
   return (
     <div style={{ 
-      minHeight: "100vh", 
-      background: "var(--bg-base)", 
-      color: "var(--text-primary)", 
-      // 🌟 關鍵修正：加入 env(safe-area-inset-top) 自動閃避 iOS 頂部時間與瀏海
-      paddingTop: "calc(1.5rem + env(safe-area-inset-top))",
-      paddingLeft: "1.5rem",
-      paddingRight: "1.5rem",
-      paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))"
+      minHeight: "100vh", background: "var(--bg-base)", color: "var(--text-primary)", 
+      paddingTop: "calc(1.5rem + env(safe-area-inset-top))", paddingLeft: "1.5rem", paddingRight: "1.5rem", paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))"
     }}>
       <header style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "2rem" }}>
         <button onClick={() => window.location.href = "/"} style={{ width: "40px", height: "40px", borderRadius: "12px", background: "var(--bg-surface)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--text-primary)", outline: "none", WebkitTapHighlightColor: "transparent" }}>
@@ -102,7 +96,7 @@ export default function SettingsPage() {
           </div>
           {session && (
             <div style={{ padding: "1rem 1.25rem", borderBottom: "1px solid var(--border)" }}>
-              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", marginBottom: "0.5rem", textTransform: "uppercase" }}>{t("自訂顯示名稱", "Display Name")}</label>
+              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", marginBottom: "0.5rem", textTransform: "uppercase" }}>{t("自訂您的顯示名稱", "Your Display Name")}</label>
               <input type="text" value={customName} onChange={(e) => updateCustomName(e.target.value)} placeholder={session.user.name} style={{ width: "100%", padding: "0.7rem 0.8rem", borderRadius: "10px", background: "var(--bg-base)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none", transition: "border-color 0.2s" }} onFocus={e => e.target.style.borderColor = "var(--border-focus)"} onBlur={e => e.target.style.borderColor = "var(--border)"} />
             </div>
           )}
@@ -148,31 +142,56 @@ export default function SettingsPage() {
                   <div style={{ textAlign: "center", padding: "1rem", fontSize: "0.85rem", color: "var(--text-muted)" }}>Loading...</div>
                 ) : adminStats.map((user, idx) => {
                   const isExpanded = expandedUser === user.email;
+                  
+                  // 🌟 套用名稱對照表
+                  const displayName = userAliases[user.email] || user.email.split('@')[0];
+
                   return (
                     <div key={idx} style={{ background: "var(--bg-elevated)", borderRadius: "12px", border: "1px solid var(--border)", overflow: "hidden" }}>
                       <button onClick={() => setExpandedUser(isExpanded ? null : user.email)} style={{ width: "100%", padding: "0.85rem 1rem", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", color: "var(--text-primary)", outline: "none", WebkitTapHighlightColor: "transparent" }}>
-                        <span style={{ fontSize: "0.85rem", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>{user.email}</span>
+                        
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
+                          <span style={{ fontSize: "0.9rem", fontWeight: 700 }}>{displayName}</span>
+                          {/* 如果有設定別名，底下顯示小字的真實 Email 以供辨識 */}
+                          {userAliases[user.email] && <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>{user.email}</span>}
+                        </div>
+
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                            <span style={{ fontSize: "0.75rem", fontWeight: 700, background: "var(--accent-soft)", color: "var(--accent)", padding: "2px 8px", borderRadius: "999px" }}>{user.total} 項</span>
                            <ChevronDown size={14} style={{ transform: isExpanded ? "rotate(180deg)" : "none", transition: "0.2s" }} />
                         </div>
                       </button>
+
                       {isExpanded && (
-                        <div style={{ padding: "0.2rem 1rem 0.85rem 1rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem", borderTop: "1px dashed var(--border)", marginTop: "-2px" }}>
-                          {Object.entries(categoryIcons).map(([key, meta]) => {
-                            const count = user.categories[key] || 0;
-                            if (count === 0) return null;
-                            const Icon = meta.icon;
-                            return (
-                              <div key={key} style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", background: "var(--bg-surface)", borderRadius: "10px", border: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-                                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "24px", height: "24px", borderRadius: "6px", background: meta.color, color: "var(--bg-base)" }}>
-                                  <Icon size={14} strokeWidth={2.5} />
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          {/* 🌟 新增：別名設定輸入框 */}
+                          <div style={{ padding: "0.6rem 1rem", borderTop: "1px dashed var(--border)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: "0.5rem", background: "var(--bg-base)" }}>
+                            <Edit3 size={14} color="var(--accent)" />
+                            <input
+                              type="text"
+                              placeholder={t("設定好記的名稱 (如: Kenji)", "Set Display Name...")}
+                              value={userAliases[user.email] || ""}
+                              onChange={(e) => updateUserAlias(user.email, e.target.value)}
+                              style={{ flex: 1, background: "transparent", border: "none", color: "var(--accent)", fontSize: "0.85rem", fontWeight: 600, outline: "none" }}
+                            />
+                          </div>
+
+                          <div style={{ padding: "0.85rem 1rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem" }}>
+                            {Object.entries(categoryIcons).map(([key, meta]) => {
+                              const count = user.categories[key] || 0;
+                              if (count === 0) return null;
+                              const Icon = meta.icon;
+                              return (
+                                <div key={key} style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", background: "var(--bg-surface)", borderRadius: "10px", border: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+                                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "24px", height: "24px", borderRadius: "6px", background: meta.color, color: "var(--bg-base)" }}>
+                                    <Icon size={14} strokeWidth={2.5} />
+                                  </div>
+                                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", flex: 1 }}>{t(meta.label[0], meta.label[1])}</span>
+                                  <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "var(--text-primary)" }}>{count}</span>
                                 </div>
-                                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", flex: 1 }}>{t(meta.label[0], meta.label[1])}</span>
-                                <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "var(--text-primary)" }}>{count}</span>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -182,16 +201,6 @@ export default function SettingsPage() {
             )}
           </section>
         )}
-        
-        <div style={{ textAlign: "center", marginTop: "1rem", marginBottom: "2rem", display: "flex", flexDirection: "column", gap: "6px" }}>
-          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 700, letterSpacing: "0.05em", opacity: 0.8 }}>
-            ASSET TRACKER V2.7.0
-          </div>
-          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontWeight: 500, opacity: 0.6 }}>
-            By Chester
-          </div>
-        </div>
-
       </main>
     </div>
   );

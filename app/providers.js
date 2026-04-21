@@ -12,19 +12,25 @@ export function Providers({ children }) {
   const [theme, setTheme] = useState("dark");
   const [lang, setLang] = useState("zh");
   const [customName, setCustomName] = useState("");
-  
-  // 🌟 專案追蹤模式 (鈴鐺開關)
   const [showOnlyIssues, setShowOnlyIssues] = useState(false);
+  
+  // 🌟 新增：使用者名稱對照表 (Email -> 自訂名稱)
+  const [userAliases, setUserAliases] = useState({});
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme") || "dark";
     const savedLang = localStorage.getItem("lang") || "zh";
     const savedName = localStorage.getItem("customName") || "";
+    const savedAliases = localStorage.getItem("userAliases");
 
     setTheme(savedTheme);
     setLang(savedLang);
     setCustomName(savedName);
     document.documentElement.setAttribute("data-theme", savedTheme);
+
+    if (savedAliases) {
+      try { setUserAliases(JSON.parse(savedAliases)); } catch (e) {}
+    }
   }, []);
 
   const toggleTheme = () => {
@@ -45,6 +51,20 @@ export function Providers({ children }) {
     localStorage.setItem("customName", name);
   };
 
+  // 🌟 新增：更新名稱對照表的函數
+  const updateUserAlias = (email, alias) => {
+    setUserAliases(prev => {
+      const next = { ...prev };
+      if (alias.trim() === "") {
+        delete next[email]; // 如果清空輸入框，就恢復預設
+      } else {
+        next[email] = alias;
+      }
+      localStorage.setItem("userAliases", JSON.stringify(next));
+      return next;
+    });
+  };
+
   const t = (zh, en) => (lang === "zh" ? zh : en);
 
   return (
@@ -53,7 +73,8 @@ export function Providers({ children }) {
         theme, toggleTheme, 
         lang, toggleLang, t, 
         customName, updateCustomName,
-        showOnlyIssues, setShowOnlyIssues // 🌟 修正這裡！匯出 setShowOnlyIssues 來跟 Navbar 對接
+        showOnlyIssues, setShowOnlyIssues,
+        userAliases, updateUserAlias // 🌟 匯出供其他元件使用
       }}>
         {children}
       </AppContext.Provider>

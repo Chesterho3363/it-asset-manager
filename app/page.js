@@ -238,9 +238,12 @@ function CustomSelect({ value, onChange, options, style }) {
   );
 }
 
+// 🌟 手機版卡片：加上讀取名稱對照表
 function AssetCard({ asset, t, onView, haptic }) {
+  const { userAliases } = useApp();
   const { text: noteText } = parseSpecs(asset.note);
   const overdue = isAssetOverdue(asset.status, asset.returnDate);
+  const ownerName = asset.owner ? (userAliases[asset.owner] || asset.owner.split('@')[0]) : null;
 
   return (
     <div onClick={() => { haptic(30); onView(asset); }} style={{ background: "var(--bg-surface)", border: overdue ? "1px solid var(--danger)" : "1px solid var(--border)", borderRadius: "12px", padding: "1.25rem", display: "flex", flexDirection: "column", gap: "0.75rem", cursor: "pointer" }} className="btn-spring hover-lift">
@@ -256,16 +259,18 @@ function AssetCard({ asset, t, onView, haptic }) {
         </div>
       )}
       <SpecsPreview note={asset.note} category={asset.category} />
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+      
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginTop: "2px" }}>
         <CategoryBadge category={asset.category} t={t} />
-        {asset.borrower && <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>👤 {asset.borrower}</span>}
+        {ownerName && <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "2px", background: "var(--bg-elevated)", padding: "2px 6px", borderRadius: "4px" }}>👑 {ownerName}</span>}
+        {asset.borrower && <span style={{ fontSize: "0.75rem", color: "var(--warning)", display: "flex", alignItems: "center", gap: "2px", background: "var(--warning-soft)", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>👤 {asset.borrower}</span>}
       </div>
     </div>
   );
 }
 
 export default function HomePage() {
-  const { t, showOnlyIssues } = useApp();
+  const { t, showOnlyIssues, userAliases } = useApp();
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
@@ -332,7 +337,18 @@ export default function HomePage() {
   const filtered = assets.filter(a => {
     if (showOnlyIssues && !a.issueId && !a.doe) return false;
     const q = search.toLowerCase();
-    const matchSearch = !search || (a.assetCode||"").toLowerCase().includes(q) || (a.model||"").toLowerCase().includes(q) || (a.borrower||"").toLowerCase().includes(q) || (a.issueId||"").toLowerCase().includes(q);
+    
+    // 🌟 搜尋功能現在也支援透過「設定好的名字」尋找了
+    const ownerAlias = a.owner ? (userAliases[a.owner] || a.owner.split('@')[0]) : "";
+
+    const matchSearch = !search || 
+      (a.assetCode||"").toLowerCase().includes(q) || 
+      (a.model||"").toLowerCase().includes(q) || 
+      (a.borrower||"").toLowerCase().includes(q) || 
+      (a.issueId||"").toLowerCase().includes(q) ||
+      ownerAlias.toLowerCase().includes(q) ||
+      (a.owner||"").toLowerCase().includes(q); 
+
     if (filterStatus === "overdue") return matchSearch && isAssetOverdue(a.status, a.returnDate) && (filterCategory === "all" || a.category === filterCategory);
     return matchSearch && (filterStatus === "all" || a.status === filterStatus) && (filterCategory === "all" || a.category === filterCategory);
   });
@@ -352,7 +368,6 @@ export default function HomePage() {
   const hasActiveFilters = search || filterStatus !== "all" || filterCategory !== "all" || sortBy !== "assetCode";
 
   return (
-    // 🌟 關鍵修正：確保主畫面的 padding-bottom 能容納「導覽列 (56px) + 安全區域 + 加號按鈕空間」
     <div style={{ minHeight: "100vh", background: "var(--bg-base)", paddingBottom: isMobile ? "calc(140px + env(safe-area-inset-bottom))" : "2rem" }}>
       <Navbar />
       <main style={{ maxWidth: "1400px", margin: "0 auto", padding: isMobile ? "1.5rem 1.25rem" : "2rem 1.5rem" }}>
@@ -397,7 +412,7 @@ export default function HomePage() {
           <div className="animate-fade-in" style={{ position: "relative", zIndex: 20, background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "12px", padding: "1rem", marginBottom: "1.5rem", display: "flex", flexDirection: "column", gap: "0.75rem", boxShadow: "var(--shadow-sm)" }}>
             <div style={{ position: "relative" }}>
               <Search size={16} style={{ position: "absolute", left: "0.875rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("搜尋編號、型號、借用人、Issue ID...", "Search...")}
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("搜尋編號、型號、保管人、借用人、Issue ID...", "Search...")}
                 style={{ width: "100%", padding: "0.7rem 1rem 0.7rem 2.4rem", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-primary)", fontSize: "0.9rem", fontFamily: "var(--font-display)", outline: "none", transition: "border-color 0.2s" }}
                 onFocus={e => e.target.style.borderColor = "var(--border-focus)"}
                 onBlur={e => e.target.style.borderColor = "var(--border)"} />
@@ -464,7 +479,7 @@ export default function HomePage() {
                     { label: t("資產編號","Code"), align: "left" },
                     { label: t("類別","Category"), align: "left" },
                     { label: t("狀態","Status"), align: "left" },
-                    { label: t("借用人","Borrower"), align: "left" },
+                    { label: t("保管 / 借用","Owner / Borrower"), align: "left" }, 
                     { label: t("Issue/DOE","Issue/DOE"), align: "left" },
                     { label: t("操作","Actions"), align: "right" }
                   ].map(h => (
@@ -476,6 +491,10 @@ export default function HomePage() {
                 {sortedAndFiltered.map(asset => {
                   const { text: noteText } = parseSpecs(asset.note);
                   const overdue = isAssetOverdue(asset.status, asset.returnDate);
+                  
+                  // 🌟 電腦版表格：讀取名稱對照表
+                  const ownerName = asset.owner ? (userAliases[asset.owner] || asset.owner.split('@')[0]) : null;
+
                   return (
                     <tr key={asset.id} 
                       onClick={() => { haptic(30); setViewAsset(asset); }}
@@ -490,10 +509,27 @@ export default function HomePage() {
                       <td style={{ padding: "1rem", verticalAlign: "middle", fontSize: "0.8rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{asset.assetCode || "—"}</td>
                       <td style={{ padding: "1rem", verticalAlign: "middle" }}><CategoryBadge category={asset.category} t={t} /></td>
                       <td style={{ padding: "1rem", verticalAlign: "middle" }}><StatusBadge status={asset.status} returnDate={asset.returnDate} t={t} /></td>
-                      <td style={{ padding: "1rem", verticalAlign: "middle", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                        {asset.borrower ? <span style={{ fontWeight: 600 }}>{asset.borrower}</span> : <span style={{ color: "var(--text-muted)" }}>—</span>}
-                        {asset.returnDate && <div style={{ fontSize: "0.72rem", color: overdue ? "var(--danger)" : "var(--text-muted)", fontWeight: overdue ? 700 : 500, marginTop: "4px" }}>📅 {asset.returnDate}</div>}
+                      
+                      <td style={{ padding: "1rem", verticalAlign: "middle" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-start" }}>
+                          {ownerName && (
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                              <span style={{ fontSize: "0.65rem", fontWeight: 700, background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-muted)", padding: "2px 6px", borderRadius: "4px" }}>保管</span>
+                              {ownerName}
+                            </div>
+                          )}
+                          {asset.borrower ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", color: "var(--warning)", fontWeight: 600 }}>
+                               <span style={{ fontSize: "0.65rem", fontWeight: 700, background: "var(--warning-soft)", color: "var(--warning)", padding: "2px 6px", borderRadius: "4px" }}>借用</span>
+                               {asset.borrower}
+                            </div>
+                          ) : (
+                            !ownerName && <span style={{ color: "var(--text-muted)" }}>—</span>
+                          )}
+                          {asset.returnDate && <div style={{ fontSize: "0.72rem", color: overdue ? "var(--danger)" : "var(--text-muted)", fontWeight: overdue ? 700 : 500, marginTop: "2px" }}>📅 {asset.returnDate}</div>}
+                        </div>
                       </td>
+
                       <td style={{ padding: "1rem", verticalAlign: "middle" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", alignItems: "flex-start" }}>
                           <IssueBadge issueId={asset.issueId} />
@@ -539,7 +575,6 @@ export default function HomePage() {
         )}
       </main>
 
-      {/* 🌟 關鍵修正：透過 calc 動態計算，讓加號按鈕剛好懸浮在導覽列 (56px) 上方約 16px 處 */}
       <button onClick={() => { haptic(50); setEditAsset(null); setShowForm(true); }} style={{ 
         position: "fixed", 
         bottom: isMobile ? "calc(72px + env(safe-area-inset-bottom))" : "32px", 

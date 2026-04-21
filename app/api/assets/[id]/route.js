@@ -42,7 +42,8 @@ export async function PATCH(request, { params }) {
     );
 
     // ── 合法值驗證 (維持原有的安全機制) ──
-    const validCategories = ["laptop", "monitor", "docking", "other"];
+    // 🌟 修正：補上 office 和 semi
+    const validCategories = ["laptop", "monitor", "docking", "other", "office", "semi"];
     if (
       filteredBody.category !== undefined &&
       filteredBody.category !== null &&
