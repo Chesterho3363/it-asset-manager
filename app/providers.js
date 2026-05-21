@@ -13,24 +13,25 @@ export function Providers({ children }) {
   const [lang, setLang] = useState("zh");
   const [customName, setCustomName] = useState("");
   const [showOnlyIssues, setShowOnlyIssues] = useState(false);
-  
-  // 🌟 新增：使用者名稱對照表 (Email -> 自訂名稱)
   const [userAliases, setUserAliases] = useState({});
+  
+  // 🌟 新增：使用者部門對照表 (Email -> 部門名稱)
+  const [userDepartments, setUserDepartments] = useState({});
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme") || "dark";
     const savedLang = localStorage.getItem("lang") || "zh";
     const savedName = localStorage.getItem("customName") || "";
     const savedAliases = localStorage.getItem("userAliases");
+    const savedDepts = localStorage.getItem("userDepartments");
 
     setTheme(savedTheme);
     setLang(savedLang);
     setCustomName(savedName);
     document.documentElement.setAttribute("data-theme", savedTheme);
 
-    if (savedAliases) {
-      try { setUserAliases(JSON.parse(savedAliases)); } catch (e) {}
-    }
+    if (savedAliases) { try { setUserAliases(JSON.parse(savedAliases)); } catch (e) {} }
+    if (savedDepts) { try { setUserDepartments(JSON.parse(savedDepts)); } catch (e) {} }
   }, []);
 
   const toggleTheme = () => {
@@ -51,16 +52,23 @@ export function Providers({ children }) {
     localStorage.setItem("customName", name);
   };
 
-  // 🌟 新增：更新名稱對照表的函數
   const updateUserAlias = (email, alias) => {
     setUserAliases(prev => {
       const next = { ...prev };
-      if (alias.trim() === "") {
-        delete next[email]; // 如果清空輸入框，就恢復預設
-      } else {
-        next[email] = alias;
-      }
+      if (alias.trim() === "") delete next[email];
+      else next[email] = alias;
       localStorage.setItem("userAliases", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // 🌟 新增：更新部門對照表的函數
+  const updateUserDepartment = (email, dept) => {
+    setUserDepartments(prev => {
+      const next = { ...prev };
+      if (!dept || dept.trim() === "") delete next[email];
+      else next[email] = dept;
+      localStorage.setItem("userDepartments", JSON.stringify(next));
       return next;
     });
   };
@@ -70,11 +78,10 @@ export function Providers({ children }) {
   return (
     <SessionProvider>
       <AppContext.Provider value={{ 
-        theme, toggleTheme, 
-        lang, toggleLang, t, 
-        customName, updateCustomName,
-        showOnlyIssues, setShowOnlyIssues,
-        userAliases, updateUserAlias // 🌟 匯出供其他元件使用
+        theme, toggleTheme, lang, toggleLang, t, 
+        customName, updateCustomName, showOnlyIssues, setShowOnlyIssues,
+        userAliases, updateUserAlias,
+        userDepartments, updateUserDepartment // 🌟 匯出供其他元件使用
       }}>
         {children}
       </AppContext.Provider>

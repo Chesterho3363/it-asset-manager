@@ -1,5 +1,5 @@
 "use client";
-import { Home, ScanLine, Settings } from "lucide-react";
+import { Home, ScanLine, Settings, Users } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useApp } from "../app/providers";
 
@@ -12,6 +12,7 @@ export default function BottomNav() {
 
   const navItems = [
     { path: "/", icon: Home, label: t("主畫面", "Home") },
+    { path: "/shared", icon: Users, label: t("共用裝置", "Shared") },
     { path: "/scan", icon: ScanLine, label: t("掃描", "Scan") },
     { path: "/settings", icon: Settings, label: t("設定", "Settings") }
   ];

@@ -1,249 +1,30 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, RefreshCw, Laptop, Monitor, Plug, Package, CheckCircle2, Clock, Search, Undo2, QrCode, AlertCircle, ChevronDown, AlertTriangle, Filter, Pencil, Briefcase, Layers } from "lucide-react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import useSWR from "swr";
+import { Plus, RefreshCw, CheckCircle2, Clock, Search, Undo2, QrCode, AlertCircle, AlertTriangle, Filter, Pencil, Users, Package, ChevronDown, Building2, Laptop, Monitor, Plug, Briefcase, Layers } from "lucide-react";
 import Navbar from "../components/Navbar";
 import BottomNav from "../components/BottomNav";
 import AssetForm from "../components/AssetForm";
 import QRModal from "../components/QRModal";
 import { useApp } from "./providers"; 
 import AssetDetailModal from "../components/AssetDetailModal";
+import { useSession } from "next-auth/react";
 
-const SkeletonCard = () => (
-  <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "12px", padding: "1.25rem", display: "flex", flexDirection: "column", gap: "0.8rem" }}>
-    <div style={{ display: "flex", justifyContent: "space-between" }}>
-      <div className="skeleton" style={{ width: "40%", height: "1.2rem" }} />
-      <div className="skeleton" style={{ width: "20%", height: "1.2rem", borderRadius: "999px" }} />
-    </div>
-    <div className="skeleton" style={{ width: "30%", height: "0.8rem" }} />
-    <div style={{ display: "flex", gap: "0.5rem" }}>
-      <div className="skeleton" style={{ width: "60px", height: "1.5rem", borderRadius: "999px" }} />
-      <div className="skeleton" style={{ width: "80px", height: "1.5rem", borderRadius: "999px" }} />
-    </div>
-  </div>
-);
+import { SkeletonCard, SkeletonTable, AnimatedEmptyState } from "../components/ui/Loaders";
+import { StatusBadge, CategoryBadge, DepartmentBadge, IssueBadge, DoeBadge, categoryMeta, isAssetOverdue } from "../components/ui/Badges";
+import { StatCard } from "../components/ui/StatCard";
+import { CustomSelect } from "../components/ui/CustomSelect";
+import { SpecsPreview, parseSpecs } from "../components/ui/SpecsPreview";
 
-const SkeletonTable = () => (
-  <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto", boxShadow: "var(--shadow-sm)" }}>
-    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "900px" }}>
-      <thead>
-        <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-elevated)" }}>
-          {[1, 2, 3, 4, 5, 6, 7].map(i => (
-            <th key={i} style={{ padding: "1rem" }}><div className="skeleton" style={{ height: "0.8rem", width: "50%" }} /></th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {[1, 2, 3, 4, 5].map(i => (
-          <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
-            <td style={{ padding: "1rem" }}>
-              <div className="skeleton" style={{ height: "1.2rem", width: "80%" }} />
-              <div className="skeleton" style={{ height: "0.8rem", width: "40%", marginTop: "0.5rem" }} />
-            </td>
-            <td style={{ padding: "1rem" }}><div className="skeleton" style={{ height: "1rem", width: "60%" }} /></td>
-            <td style={{ padding: "1rem" }}><div className="skeleton" style={{ height: "1.5rem", width: "80px", borderRadius: "999px" }} /></td>
-            <td style={{ padding: "1rem" }}><div className="skeleton" style={{ height: "1.5rem", width: "80px", borderRadius: "999px" }} /></td>
-            <td style={{ padding: "1rem" }}><div className="skeleton" style={{ height: "1rem", width: "70%" }} /></td>
-            <td style={{ padding: "1rem" }}><div className="skeleton" style={{ height: "1.5rem", width: "80px", borderRadius: "4px" }} /></td>
-            <td style={{ padding: "1rem" }}><div className="skeleton" style={{ height: "1.5rem", width: "60px", borderRadius: "4px", marginLeft: "auto" }} /></td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
+// ─── 頁面主要元件 ─────────────────────────────────────────────────────────────
 
-const AnimatedEmptyState = ({ t }) => (
-  <div style={{ padding: "4rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
-    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ margin: "0 auto 1.5rem", opacity: 0.5 }}>
-      <circle cx="11" cy="11" r="8" strokeDasharray="50" strokeDashoffset="50">
-        <animate attributeName="stroke-dashoffset" from="50" to="0" dur="1.5s" fill="freeze" />
-      </circle>
-      <line x1="21" y1="21" x2="16.65" y2="16.65">
-        <animate attributeName="opacity" from="0" to="1" dur="1s" begin="1s" fill="freeze" />
-      </line>
-    </svg>
-    <div style={{ fontSize: "1rem", fontWeight: 600 }}>{t("找不到相關資產", "No assets found")}</div>
-    <div style={{ fontSize: "0.85rem", marginTop: "4px", opacity: 0.7 }}>{t("試著調整篩選條件或是重新搜尋", "Try adjusting your filters")}</div>
-  </div>
-);
-
-const categoryMeta = {
-  laptop:  { icon: Laptop,    color: "var(--accent)", softColor: "var(--accent-soft)", label: ["筆電", "Laptop"] },
-  monitor: { icon: Monitor,   color: "#f59e0b", softColor: "rgba(245, 158, 11, 0.15)", label: ["螢幕", "Monitor"] },
-  docking: { icon: Plug,      color: "#10b981", softColor: "rgba(16, 185, 129, 0.15)", label: ["Docking", "Docking"] },
-  office:  { icon: Briefcase, color: "#8b5cf6", softColor: "rgba(139, 92, 246, 0.15)", label: ["辦公室用品", "Office"] },
-  semi:    { icon: Layers,    color: "#06b6d4", softColor: "rgba(6, 182, 212, 0.15)", label: ["半成品", "Semi-finished"] },
-  other:   { icon: Package,   color: "#71717a", softColor: "rgba(113, 113, 122, 0.15)", label: ["其他", "Other"] },
-};
-
-function parseSpecs(noteStr) {
-  if (!noteStr) return { text: "", specs: {} };
-  try {
-    const parsed = JSON.parse(noteStr);
-    const { _note, ...specs } = parsed;
-    return { text: _note || "", specs };
-  } catch { return { text: noteStr, specs: {} }; }
-}
-
-function isAssetOverdue(status, returnDate) {
-  if (status !== "borrowed" || !returnDate) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(returnDate) < today;
-}
-
-function StatusBadge({ status, returnDate, t }) {
-  const overdue = isAssetOverdue(status, returnDate);
-  if (status === "available") {
-    return (
-      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", padding: "0.25rem 0.65rem", background: "var(--success-soft)", borderRadius: "999px", color: "var(--success)", fontSize: "0.72rem", fontWeight: 700 }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--success)", flexShrink: 0 }} />{t("可借用", "Available")}
-      </span>
-    );
-  }
-  if (overdue) {
-    return (
-      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", padding: "0.25rem 0.65rem", background: "var(--danger-soft)", border: "1px solid rgba(229,115,115,0.3)", borderRadius: "999px", color: "var(--danger)", fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.02em" }}>
-        <span className="radar-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--danger)", flexShrink: 0 }} />
-        {t("已逾期", "Overdue")}
-      </span>
-    );
-  }
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", padding: "0.25rem 0.65rem", background: "var(--warning-soft)", borderRadius: "999px", color: "var(--warning)", fontSize: "0.72rem", fontWeight: 700 }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--warning)", flexShrink: 0 }} />{t("借出中", "Borrowed")}
-    </span>
-  );
-}
-
-function CategoryBadge({ category, t }) {
-  const meta = categoryMeta[category] || categoryMeta.other;
-  const Icon = meta.icon;
-  return (
-    <span style={{ 
-      display: "inline-flex", alignItems: "center", gap: "0.35rem", 
-      padding: "0.25rem 0.65rem", 
-      background: meta.softColor, 
-      border: "none", 
-      borderRadius: "999px", 
-      color: meta.color, 
-      fontSize: "0.72rem",
-      fontWeight: 700 
-    }}>
-      <Icon size={13} strokeWidth={2.5} />{t(meta.label[0], meta.label[1])}
-    </span>
-  );
-}
-
-function IssueBadge({ issueId }) {
-  if (!issueId) return null;
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", padding: "0.2rem 0.55rem", background: "rgba(234, 179, 8, 0.15)", border: "1px solid rgba(234, 179, 8, 0.4)", color: "var(--warning)", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.04em" }}>
-      🔖 {issueId}
-    </span>
-  );
-}
-
-function DoeBadge({ doe }) {
-  if (!doe) return null;
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", padding: "0.2rem 0.55rem", background: "rgba(14, 165, 233, 0.15)", border: "1px solid rgba(14, 165, 233, 0.4)", color: "#0ea5e9", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700 }}>
-      🔬 {doe}
-    </span>
-  );
-}
-
-function SpecsPreview({ note, category }) {
-  const { specs } = parseSpecs(note);
-  const entries = Object.entries(specs).filter(([, v]) => v);
-  if (!entries.length || (category !== "laptop" && category !== "monitor")) return null;
-  return (
-    <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap", marginTop: "0.2rem" }}>
-      {entries.slice(0, 3).map(([k, v]) => (
-        <span key={k} style={{ fontSize: "0.67rem", padding: "0.1rem 0.4rem", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "4px", color: "var(--text-muted)" }}>
-          {k.toUpperCase()}: {v}
-        </span>
-      ))}
-      {entries.length > 3 && <span style={{ fontSize: "0.67rem", color: "var(--text-muted)" }}>+{entries.length - 3}</span>}
-    </div>
-  );
-}
-
-function StatCard({ label, value, icon: Icon, color, isActive }) {
-  return (
-    <div className="hover-lift" style={{ 
-      background: isActive ? `${color}11` : "var(--bg-surface)", 
-      border: `1px solid ${isActive ? color : "var(--border)"}`,
-      borderRadius: "12px", 
-      padding: "1rem", 
-      display: "flex", 
-      alignItems: "center", 
-      gap: "0.75rem", 
-      transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)", 
-      minWidth: 0 
-    }}>
-      <div style={{ width: "38px", height: "38px", borderRadius: "10px", background: isActive ? "var(--bg-surface)" : "var(--bg-elevated)", boxShadow: isActive ? "0 2px 8px rgba(0,0,0,0.05)" : "none", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.3s ease" }}>
-        <Icon size={18} color={color} />
-      </div>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: "1.4rem", fontWeight: 700, fontFamily: "var(--font-display)", lineHeight: 1, color: "var(--text-primary)" }}>{value}</div>
-        <div style={{ fontSize: "0.75rem", color: isActive ? color : "var(--text-muted)", marginTop: "4px", fontWeight: isActive ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {label}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CustomSelect({ value, onChange, options, style }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (ref.current && !ref.current.contains(event.target)) setIsOpen(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const selected = options.find(o => o.value === value) || options[0];
-
-  return (
-    <div ref={ref} style={{ position: "relative", ...style }}>
-      <button type="button" onClick={() => setIsOpen(!isOpen)} style={{ width: "100%", padding: "0.55rem 0.875rem", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-primary)", fontSize: "0.8rem", fontFamily: "var(--font-display)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", outline: "none", borderColor: isOpen ? "var(--border-focus)" : "var(--border)", transition: "border-color 0.2s" }}>
-        <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selected.label}</span>
-        <ChevronDown size={14} style={{ color: "var(--text-muted)", transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0, marginLeft: "0.5rem" }} />
-      </button>
-
-      {isOpen && (
-        <div className="animate-fade-in" style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 100, background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "12px", boxShadow: "var(--shadow-lg)", padding: "0.35rem", display: "flex", flexDirection: "column", gap: "2px" }}>
-          {options.map(opt => {
-            const isActive = value === opt.value;
-            return (
-              <div 
-                key={opt.value} 
-                onClick={() => { onChange(opt.value); setIsOpen(false); }} 
-                style={{ padding: "0.5rem 0.75rem", borderRadius: "8px", fontSize: "0.8rem", fontFamily: "var(--font-display)", cursor: "pointer", color: isActive ? "var(--text-primary)" : "var(--text-secondary)", background: isActive ? "var(--bg-elevated)" : "transparent", fontWeight: isActive ? 600 : 400, transition: "all 0.15s" }} 
-                onMouseEnter={e => { if(!isActive) { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-primary)"; } }} 
-                onMouseLeave={e => { if(!isActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-secondary)"; } }}
-              >
-                {opt.label}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// 🌟 手機版卡片：加上讀取名稱對照表
 function AssetCard({ asset, t, onView, haptic }) {
-  const { userAliases } = useApp();
-  const { text: noteText } = parseSpecs(asset.note);
+  // 🌟 修正：拉入 userDepartments 以備無縫接軌
+  const { userAliases, userDepartments } = useApp();
   const overdue = isAssetOverdue(asset.status, asset.returnDate);
   const ownerName = asset.owner ? (userAliases[asset.owner] || asset.owner.split('@')[0]) : null;
+  // 🌟 修正：如果有 owner 但沒 department，就從對照表抓
+  const displayDept = asset.department || (asset.owner ? userDepartments[asset.owner] : null);
 
   return (
     <div onClick={() => { haptic(30); onView(asset); }} style={{ background: "var(--bg-surface)", border: overdue ? "1px solid var(--danger)" : "1px solid var(--border)", borderRadius: "12px", padding: "1.25rem", display: "flex", flexDirection: "column", gap: "0.75rem", cursor: "pointer" }} className="btn-spring hover-lift">
@@ -251,7 +32,10 @@ function AssetCard({ asset, t, onView, haptic }) {
         <div style={{ fontSize: "1.05rem", fontWeight: 700, fontFamily: "var(--font-display)" }}>{asset.model || "—"}</div>
         <StatusBadge status={asset.status} returnDate={asset.returnDate} t={t} />
       </div>
-      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}># {asset.assetCode}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}># {asset.assetCode}</div>
+        <DepartmentBadge department={displayDept} />
+      </div>
       {(asset.issueId || asset.doe) && (
         <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
           <IssueBadge issueId={asset.issueId} />
@@ -262,6 +46,22 @@ function AssetCard({ asset, t, onView, haptic }) {
       
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginTop: "2px" }}>
         <CategoryBadge category={asset.category} t={t} />
+        {asset.isShared && (
+          <span style={{ 
+            fontSize: "0.75rem", padding: "2px 6px", borderRadius: "4px", 
+            background: "rgba(14, 165, 233, 0.15)", 
+            color: "#0ea5e9", 
+            fontWeight: 700,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "2px"
+          }}>
+            <Users size={12} /> 
+            {asset.shareWithEveryone !== false 
+              ? t("公開共用", "Publicly Shared") 
+              : t("限定共用", "Restricted Share")}
+          </span>
+        )}
         {ownerName && <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "2px", background: "var(--bg-elevated)", padding: "2px 6px", borderRadius: "4px" }}>👑 {ownerName}</span>}
         {asset.borrower && <span style={{ fontSize: "0.75rem", color: "var(--warning)", display: "flex", alignItems: "center", gap: "2px", background: "var(--warning-soft)", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>👤 {asset.borrower}</span>}
       </div>
@@ -269,14 +69,28 @@ function AssetCard({ asset, t, onView, haptic }) {
   );
 }
 
-export default function HomePage() {
-  const { t, showOnlyIssues, userAliases } = useApp();
-  const [assets, setAssets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState("");
+export default function AssetsPage({ showSharedOnly = false }) {
+  const { t, showOnlyIssues, userAliases, userDepartments } = useApp();
+  const { data: session } = useSession();
+  const userEmail = session?.user?.email?.toLowerCase().trim();
+  const adminEmail = "ho3363@gmail.com";
+  const isAdmin = userEmail === adminEmail;
+
+  // ── SWR Data Fetching ──
+  const fetcher = (url) => fetch(url).then(res => res.json());
+  const { data: assetsData, error, isLoading, mutate: fetchAssets } = useSWR("/api/assets", fetcher, {
+    revalidateOnFocus: true,
+    dedupingInterval: 5000,
+  });
+
+  const baseAssets = assetsData?.success ? assetsData.data : [];
+  const loading = isLoading;
+
+  // ── States ──
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
+  const [filterDepartment, setFilterDepartment] = useState("all");
   const [sortBy, setSortBy] = useState("assetCode");
   const [showForm, setShowForm] = useState(false);
   const [editAsset, setEditAsset] = useState(null);
@@ -284,6 +98,7 @@ export default function HomePage() {
   const [qrAsset, setQrAsset] = useState(null);
   const [viewAsset, setViewAsset] = useState(null);
   
+  const [deptOptions, setDeptOptions] = useState([{ value: "all", label: t("全部部門", "All Depts") }]); 
   const [isMobile, setIsMobile] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
 
@@ -300,27 +115,19 @@ export default function HomePage() {
     return () => window.removeEventListener("resize", check); 
   }, []);
 
-  const fetchAssets = useCallback(async () => {
-    setLoading(true); 
-    setFetchError("");
-    try { 
-      const adminViewAll = localStorage.getItem("adminViewAll") !== "false";
-      const res = await fetch(`/api/assets?adminView=${adminViewAll}`, { headers: { "ngrok-skip-browser-warning": "true" }, cache: "no-store" }); 
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const data = await res.json(); 
-      if (data.success) {
-        setAssets(data.data); 
-      } else {
-        throw new Error(data.error || "API 回傳失敗");
-      }
-    } catch (err) { 
-      setFetchError(t("無法連接伺服器", "Failed to load data.")); 
-    } finally { 
-      setLoading(false); 
-    }
+  useEffect(() => {
+    const fetchDepts = async () => {
+      try {
+        const res = await fetch('/api/departments');
+        const data = await res.json();
+        if (data.success) {
+          const options = [{ value: "all", label: t("全部部門", "All Depts") }, ...data.data.map(d => ({ value: d, label: d }))];
+          setDeptOptions(options);
+        }
+      } catch (e) { console.error(e); }
+    };
+    fetchDepts();
   }, [t]);
-
-  useEffect(() => { fetchAssets(); }, [fetchAssets]);
 
   const handleReturn = async (asset) => {
     if (!confirm(t(`確定歸還「${asset.assetCode}」？`, `Return "${asset.assetCode}"?`))) return;
@@ -334,38 +141,72 @@ export default function HomePage() {
     }
   };
 
-  const filtered = assets.filter(a => {
-    if (showOnlyIssues && !a.issueId && !a.doe) return false;
-    const q = search.toLowerCase();
-    
-    // 🌟 搜尋功能現在也支援透過「設定好的名字」尋找了
-    const ownerAlias = a.owner ? (userAliases[a.owner] || a.owner.split('@')[0]) : "";
+  // ── Filtered Assets ──
+  const filtered = useMemo(() => {
+    const filteredBase = baseAssets.filter(a => {
+      const isOwner = userEmail && a.owner?.toLowerCase().trim() === userEmail;
+      let hasAccess = false;
+      if (isAdmin || isOwner) {
+        hasAccess = true;
+      } else if (a.isShared) {
+        if (a.shareWithEveryone !== false) {
+          hasAccess = true;
+        } else {
+          const currentDept = userEmail ? userDepartments[userEmail] : "";
+          const currentUserAlias = userEmail ? userAliases[userEmail] : "";
+          const currentUserNamePrefix = userEmail ? userEmail.split('@')[0] : "";
+          const inDepts = a.sharedDepts && currentDept && a.sharedDepts.includes(currentDept);
+          const inUsers = a.sharedUsers && userEmail && (
+            a.sharedUsers.includes(userEmail) || 
+            (currentUserAlias && a.sharedUsers.includes(currentUserAlias)) ||
+            a.sharedUsers.includes(currentUserNamePrefix)
+          );
+          hasAccess = inDepts || inUsers;
+        }
+      }
+      if (!hasAccess) return false;
+      if (showSharedOnly && !a.isShared) return false;
+      if (showOnlyIssues && !a.issueId && !a.doe) return false;
+      
+      const q = search.toLowerCase();
+      const ownerAlias = a.owner ? (userAliases[a.owner] || a.owner.split('@')[0]) : "";
+      const matchSearch = !search || 
+        (a.assetCode||"").toLowerCase().includes(q) || 
+        (a.model||"").toLowerCase().includes(q) || 
+        (a.borrower||"").toLowerCase().includes(q) || 
+        ownerAlias.toLowerCase().includes(q); 
+      
+      const assetDept = a.department || (a.owner ? userDepartments[a.owner] : "未分類");
+      const matchDept = filterDepartment === "all" || assetDept === filterDepartment;
+      const matchCat = filterCategory === "all" || a.category === filterCategory;
+      const matchStatus = filterStatus === "all" || (filterStatus === "overdue" ? isAssetOverdue(a.status, a.returnDate) : a.status === filterStatus);
+      
+      return matchSearch && matchDept && matchCat && matchStatus;
+    });
 
-    const matchSearch = !search || 
-      (a.assetCode||"").toLowerCase().includes(q) || 
-      (a.model||"").toLowerCase().includes(q) || 
-      (a.borrower||"").toLowerCase().includes(q) || 
-      (a.issueId||"").toLowerCase().includes(q) ||
-      ownerAlias.toLowerCase().includes(q) ||
-      (a.owner||"").toLowerCase().includes(q); 
+    return [...filteredBase].sort((a, b) => {
+      if (sortBy === "assetCode") return (a.assetCode || "").localeCompare(b.assetCode || "");
+      if (sortBy === "model") return (a.model || "").localeCompare(b.model || "");
+      if (sortBy === "date_desc") return new Date(b.acquisitionDate || 0) - new Date(a.acquisitionDate || 0);
+      if (sortBy === "date_asc") return new Date(a.acquisitionDate || 0) - new Date(b.acquisitionDate || 0);
+      return 0;
+    });
+  }, [baseAssets, search, filterStatus, filterCategory, filterDepartment, sortBy, isAdmin, userEmail, userDepartments, userAliases, showSharedOnly, showOnlyIssues]);
 
-    if (filterStatus === "overdue") return matchSearch && isAssetOverdue(a.status, a.returnDate) && (filterCategory === "all" || a.category === filterCategory);
-    return matchSearch && (filterStatus === "all" || a.status === filterStatus) && (filterCategory === "all" || a.category === filterCategory);
-  });
+  const stats = useMemo(() => {
+    const s = { total: 0, available: 0, borrowed: 0, overdue: 0 };
+    baseAssets.forEach(a => {
+      s.total++;
+      if (a.status === "available") s.available++;
+      if (a.status === "borrowed") {
+        s.borrowed++;
+        if (isAssetOverdue(a.status, a.returnDate)) s.overdue++;
+      }
+    });
+    return s;
+  }, [baseAssets]);
 
-  const sortedAndFiltered = [...filtered].sort((a, b) => {
-    if (sortBy === "assetCode") return (a.assetCode || "").localeCompare(b.assetCode || "");
-    if (sortBy === "model") return (a.model || "").localeCompare(b.model || "");
-    if (sortBy === "date_desc") return new Date(b.acquisitionDate || 0) - new Date(a.acquisitionDate || 0);
-    if (sortBy === "date_asc") return new Date(a.acquisitionDate || 0) - new Date(b.acquisitionDate || 0);
-    return 0;
-  });
-
-  const total = assets.length;
-  const available = assets.filter(a => a.status === "available").length;
-  const borrowed  = assets.filter(a => a.status === "borrowed").length;
-  const overdueCount = assets.filter(a => isAssetOverdue(a.status, a.returnDate)).length;
-  const hasActiveFilters = search || filterStatus !== "all" || filterCategory !== "all" || sortBy !== "assetCode";
+  const hasActiveFilters = search || filterStatus !== "all" || filterCategory !== "all" || filterDepartment !== "all" || sortBy !== "assetCode";
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-base)", paddingBottom: isMobile ? "calc(140px + env(safe-area-inset-bottom))" : "2rem" }}>
@@ -375,17 +216,16 @@ export default function HomePage() {
         <div className="animate-fade-in" style={{ marginBottom: "1.25rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <h1 style={{ fontFamily: "var(--font-display)", fontSize: isMobile ? "1.6rem" : "2rem", fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>
-              {t("資產總覽", "Asset Overview")}
+              {showSharedOnly ? t("共用裝置", "Shared Devices") : t("資產總覽", "Asset Overview")}
             </h1>
             <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: "4px", margin: 0 }}>
-              {t("管理所有 IT 設備的借還狀態", "Manage all IT equipment borrow status")}
+              {showSharedOnly ? t("共享與輪流借用辦公室設備", "Share and rotate borrowing of office equipment") : t("管理所有 IT 設備的借還狀態", "Manage all IT equipment borrow status")}
             </p>
           </div>
           
           <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
             <button onClick={() => { haptic(); setShowFilters(!showFilters); }} style={{ position: "relative", background: showFilters ? "var(--bg-elevated)" : "transparent", border: "none", color: showFilters ? "var(--text-primary)" : "var(--text-muted)", cursor: "pointer", display: "flex", padding: "8px", borderRadius: "50%", transition: "all 0.2s" }} className="btn-spring">
               <Filter size={18} />
-              {hasActiveFilters && !showFilters && <span style={{ position: "absolute", top: "4px", right: "4px", width: "8px", height: "8px", background: "var(--danger)", borderRadius: "50%", border: "2px solid var(--bg-base)" }}></span>}
             </button>
             <button onClick={() => { haptic(); fetchAssets(); }} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", display: "flex", padding: "8px", borderRadius: "50%", transition: "background 0.2s" }} className="btn-spring">
               <RefreshCw size={18} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
@@ -395,16 +235,16 @@ export default function HomePage() {
 
         <div className="stagger" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.75rem", marginBottom: "1.5rem" }}>
           <div onClick={() => setFilterStatus("all")} style={{ cursor: "pointer" }} className="btn-spring">
-            <StatCard label={t("資產總數", "Total")} value={total} icon={Package} color="var(--accent)" isActive={filterStatus === "all"} />
+            <StatCard label={t("資產總數", "Total")} value={stats.total} icon={Package} color="var(--accent)" isActive={filterStatus === "all"} />
           </div>
           <div onClick={() => setFilterStatus("available")} style={{ cursor: "pointer" }} className="btn-spring">
-            <StatCard label={t("可借用", "Available")} value={available} icon={CheckCircle2} color="var(--success)" isActive={filterStatus === "available"} />
+            <StatCard label={t("可借用", "Available")} value={stats.available} icon={CheckCircle2} color="var(--success)" isActive={filterStatus === "available"} />
           </div>
           <div onClick={() => setFilterStatus("borrowed")} style={{ cursor: "pointer" }} className="btn-spring">
-            <StatCard label={t("借出中", "Borrowed")} value={borrowed} icon={Clock} color="var(--warning)" isActive={filterStatus === "borrowed"} />
+            <StatCard label={t("借出中", "Borrowed")} value={stats.borrowed} icon={Clock} color="var(--warning)" isActive={filterStatus === "borrowed"} />
           </div>
           <div onClick={() => setFilterStatus("overdue")} style={{ cursor: "pointer" }} className="btn-spring">
-             <StatCard label={t("逾期未還", "Overdue")} value={overdueCount} icon={AlertCircle} color="var(--danger)" isActive={filterStatus === "overdue"} />
+             <StatCard label={t("逾期未還", "Overdue")} value={stats.overdue} icon={AlertCircle} color="var(--danger)" isActive={filterStatus === "overdue"} />
           </div>
         </div>
 
@@ -429,20 +269,22 @@ export default function HomePage() {
                 { value: "semi", label: t("半成品", "Semi-finished") }, 
                 { value: "other", label: t("其他", "Other") }
               ]} />
+              <CustomSelect value={filterDepartment} onChange={setFilterDepartment} options={deptOptions} />
               <CustomSelect value={sortBy} onChange={setSortBy} options={[{ value: "assetCode", label: t("依編號排序", "Sort by Code") }, { value: "model", label: t("依型號排序 (A-Z)", "Sort by Model") }, { value: "date_desc", label: t("取得日：新 ➔ 舊", "Date: Newest") }, { value: "date_asc", label: t("取得日：舊 ➔ 新", "Date: Oldest") }]} />
+              
               {hasActiveFilters && (
-                <button onClick={() => { setSearch(""); setFilterStatus("all"); setFilterCategory("all"); setSortBy("assetCode"); }} style={{ padding: "0.55rem 0.875rem", background: "var(--danger-soft)", border: "1px solid var(--danger)", borderRadius: "8px", color: "var(--danger)", fontSize: "0.8rem", fontFamily: "var(--font-display)", cursor: "pointer", outline: "none", transition: "all 0.2s" }}>{t("清除", "Clear")}</button>
+                <button onClick={() => { setSearch(""); setFilterStatus("all"); setFilterCategory("all"); setFilterDepartment("all"); setSortBy("assetCode"); }} style={{ padding: "0.55rem 0.875rem", background: "var(--danger-soft)", border: "1px solid var(--danger)", borderRadius: "8px", color: "var(--danger)", fontSize: "0.8rem", fontFamily: "var(--font-display)", cursor: "pointer", outline: "none", transition: "all 0.2s" }}>{t("清除", "Clear")}</button>
               )}
             </div>
           </div>
         )}
 
-        {fetchError && !loading && (
-          <div style={{ padding: "1rem", background: "var(--danger-soft)", border: "1px solid var(--danger)", borderRadius: "12px", color: "var(--danger)", display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1.25rem", fontSize: "0.85rem" }}>
+        {error && !loading && (
+          <div style={{ padding: "1rem", background: "var(--danger-soft)", border: "1px solid rgba(229,115,115,0.3)", borderRadius: "12px", color: "var(--danger)", display: "flex", gap: "0.8rem", alignItems: "flex-start", marginBottom: "1.5rem" }}>
             <AlertTriangle size={18} />
             <div>
-              <div style={{ fontWeight: 600 }}>讀取失敗</div>
-              <div style={{ fontSize: "0.75rem", opacity: 0.8 }}>{fetchError}</div>
+              <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{t("讀取資料失敗", "Error loading data")}</div>
+              <div style={{ fontSize: "0.75rem", opacity: 0.8 }}>{error.message || String(error) || t("無法連接伺服器", "Failed to load data.")}</div>
             </div>
           </div>
         )}
@@ -455,11 +297,11 @@ export default function HomePage() {
           ) : (
             <SkeletonTable />
           )
-        ) : sortedAndFiltered.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <AnimatedEmptyState t={t} />
         ) : isMobile ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }} className="stagger">
-            {sortedAndFiltered.map(asset => (
+            {filtered.map(asset => (
               <AssetCard 
                 key={asset.id} 
                 asset={asset} 
@@ -479,7 +321,7 @@ export default function HomePage() {
                     { label: t("資產編號","Code"), align: "left" },
                     { label: t("類別","Category"), align: "left" },
                     { label: t("狀態","Status"), align: "left" },
-                    { label: t("保管 / 借用","Owner / Borrower"), align: "left" }, 
+                    { label: t("部門 / 借用","Dept / Borrower"), align: "left" }, 
                     { label: t("Issue/DOE","Issue/DOE"), align: "left" },
                     { label: t("操作","Actions"), align: "right" }
                   ].map(h => (
@@ -488,12 +330,14 @@ export default function HomePage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedAndFiltered.map(asset => {
+                {filtered.map(asset => {
                   const { text: noteText } = parseSpecs(asset.note);
                   const overdue = isAssetOverdue(asset.status, asset.returnDate);
                   
-                  // 🌟 電腦版表格：讀取名稱對照表
                   const ownerName = asset.owner ? (userAliases[asset.owner] || asset.owner.split('@')[0]) : null;
+                  
+                  // 🌟 修正：計算並應用無縫接軌的部門資料
+                  const displayDept = asset.department || (asset.owner ? userDepartments[asset.owner] : null);
 
                   return (
                     <tr key={asset.id} 
@@ -502,7 +346,25 @@ export default function HomePage() {
                       onMouseEnter={e => e.currentTarget.style.background = overdue ? "var(--danger-soft)" : "var(--bg-hover)"}
                       onMouseLeave={e => e.currentTarget.style.background = overdue ? "var(--danger-soft)" : "transparent"}>
                       <td style={{ padding: "1rem", verticalAlign: "middle" }}>
-                        <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>{asset.model || <span style={{ color: "var(--text-muted)" }}>—</span>}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>{asset.model || <span style={{ color: "var(--text-muted)" }}>—</span>}</div>
+                          {asset.isShared && (
+                            <span style={{ 
+                              fontSize: "0.68rem", padding: "2px 6px", borderRadius: "4px", 
+                              background: "rgba(14, 165, 233, 0.15)", 
+                              color: "#0ea5e9", 
+                              fontWeight: 700,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "2px"
+                            }}>
+                              <Users size={10} /> 
+                              {asset.shareWithEveryone !== false 
+                                ? t("公開共用", "Publicly Shared") 
+                                : t("限定共用", "Restricted Share")}
+                            </span>
+                          )}
+                        </div>
                         <SpecsPreview note={asset.note} category={asset.category} />
                         {noteText && <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "6px" }}>📝 {noteText}</div>}
                       </td>
@@ -512,6 +374,10 @@ export default function HomePage() {
                       
                       <td style={{ padding: "1rem", verticalAlign: "middle" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-start" }}>
+                          
+                          {/* 🌟 修正：將無縫接軌的部門傳入 Badge */}
+                          <DepartmentBadge department={displayDept} />
+                          
                           {ownerName && (
                             <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
                               <span style={{ fontSize: "0.65rem", fontWeight: 700, background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-muted)", padding: "2px 6px", borderRadius: "4px" }}>保管</span>
@@ -524,7 +390,7 @@ export default function HomePage() {
                                {asset.borrower}
                             </div>
                           ) : (
-                            !ownerName && <span style={{ color: "var(--text-muted)" }}>—</span>
+                            !ownerName && !displayDept && <span style={{ color: "var(--text-muted)" }}>—</span>
                           )}
                           {asset.returnDate && <div style={{ fontSize: "0.72rem", color: overdue ? "var(--danger)" : "var(--text-muted)", fontWeight: overdue ? 700 : 500, marginTop: "2px" }}>📅 {asset.returnDate}</div>}
                         </div>
@@ -568,9 +434,9 @@ export default function HomePage() {
           </div>
         )}
         
-        {!loading && !isMobile && sortedAndFiltered.length > 0 && (
-          <div style={{ padding: "1rem", fontSize: "0.75rem", color: "var(--text-muted)", textAlign: "right" }}>
-            {t(`顯示 ${sortedAndFiltered.length} / ${total} 筆`, `Showing ${sortedAndFiltered.length} of ${total}`)}
+        {!loading && !isMobile && filtered.length > 0 && (
+          <div style={{ padding: "1rem 0", fontSize: "0.8rem", color: "var(--text-muted)", textAlign: "center" }}>
+            {t(`顯示 ${filtered.length} / ${stats.total} 筆`, `Showing ${filtered.length} of ${stats.total}`)}
           </div>
         )}
       </main>
@@ -589,10 +455,10 @@ export default function HomePage() {
         <Plus size={26} strokeWidth={2.5} className="fab-icon" />
       </button>
 
-      {showForm && <AssetForm editData={editAsset} onClose={() => setShowForm(false)} onSuccess={fetchAssets} />}
+      {showForm && <AssetForm editData={editAsset} onClose={() => { setShowForm(false); setIsBorrowMode(false); }} onSuccess={fetchAssets} isBorrowOnly={isBorrowMode} />}
       {qrAsset && <QRModal asset={qrAsset} onClose={() => setQrAsset(null)} />}
       
-      {viewAsset && <AssetDetailModal asset={viewAsset} onClose={() => setViewAsset(null)} onEdit={(a) => { haptic(); setEditAsset(a); setShowForm(true); setViewAsset(null); }} onQR={(a) => { haptic(); setQrAsset(a); setViewAsset(null); }} onReturn={handleReturn} returning={returningId === viewAsset?.id} />} 
+      {viewAsset && <AssetDetailModal asset={viewAsset} onClose={() => setViewAsset(null)} onEdit={(a) => { haptic(); setEditAsset(a); setShowForm(true); setViewAsset(null); }} onBorrow={(a) => { haptic(); setEditAsset(a); setIsBorrowMode(true); setShowForm(true); setViewAsset(null); }} onQR={(a) => { haptic(); setQrAsset(a); setViewAsset(null); }} onReturn={handleReturn} returning={returningId === viewAsset?.id} />} 
       
       {isMobile && <BottomNav />}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

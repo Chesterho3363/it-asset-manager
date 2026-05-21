@@ -35,6 +35,7 @@ export async function PATCH(request, { params }) {
       "issueId",         // 新增：Issue ID
       "doe",             // 新增：DOE
       "note",
+      "department",      // 🌟 新增：跨部門管理的部門欄位，允許編輯時寫入
     ];
 
     const filteredBody = Object.fromEntries(

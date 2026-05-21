@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { 
@@ -18,9 +18,93 @@ const categoryIcons = {
   other:   { icon: Package,   label: ["其他", "Other"], color: "#71717a", softColor: "rgba(113, 113, 122, 0.15)" },
 };
 
+function DepartmentSelect({ value, onChange, options, t }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) setIsOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const displayValue = value || t("未指定部門", "Unassigned");
+
+  return (
+    <div ref={ref} style={{ position: "relative", flex: 1 }}>
+      <button 
+        type="button" 
+        onClick={() => setIsOpen(!isOpen)} 
+        style={{ 
+          width: "100%", background: "transparent", border: "none", 
+          color: value ? "var(--text-primary)" : "var(--text-muted)", 
+          fontSize: "0.85rem", fontWeight: 600, cursor: "pointer", 
+          display: "flex", alignItems: "center", justifyContent: "space-between", 
+          outline: "none", padding: "0"
+        }}
+      >
+        <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayValue}</span>
+        <ChevronDown size={14} style={{ color: "var(--text-muted)", transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+      </button>
+
+      {isOpen && (
+        <div className="animate-fade-in" style={{ 
+          position: "absolute", top: "calc(100% + 8px)", left: 0, right: 0, zIndex: 100, 
+          background: "var(--bg-surface)", border: "1px solid var(--border)", 
+          borderRadius: "12px", boxShadow: "var(--shadow-lg)", padding: "4px", 
+          display: "flex", flexDirection: "column", gap: "2px",
+          maxHeight: "200px", overflowY: "auto"
+        }}>
+          <div 
+            onClick={() => { onChange(""); setIsOpen(false); }}
+            style={{ 
+              padding: "0.5rem 0.75rem", borderRadius: "8px", fontSize: "0.85rem", cursor: "pointer", 
+              color: !value ? "var(--text-primary)" : "var(--text-secondary)", 
+              background: !value ? "var(--bg-elevated)" : "transparent",
+              fontWeight: !value ? 700 : 500, transition: "all 0.15s" 
+            }}
+            onMouseEnter={e => { if(value) { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-primary)"; } }}
+            onMouseLeave={e => { if(value) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-secondary)"; } }}
+          >
+            {t("未指定部門", "Unassigned")}
+          </div>
+          
+          {options.map(opt => {
+            const isActive = value === opt;
+            return (
+              <div 
+                key={opt}
+                onClick={() => { onChange(opt); setIsOpen(false); }}
+                style={{ 
+                  padding: "0.5rem 0.75rem", borderRadius: "8px", fontSize: "0.85rem", cursor: "pointer", 
+                  color: isActive ? "var(--text-primary)" : "var(--text-secondary)", 
+                  background: isActive ? "var(--bg-elevated)" : "transparent",
+                  fontWeight: isActive ? 700 : 500, transition: "all 0.15s" 
+                }}
+                onMouseEnter={e => { if(!isActive) { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-primary)"; } }}
+                onMouseLeave={e => { if(!isActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-secondary)"; } }}
+              >
+                {opt}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { data: session } = useSession();
-  const { theme, toggleTheme, lang, toggleLang, t, customName, updateCustomName, userAliases, updateUserAlias } = useApp();
+  const { 
+    theme, toggleTheme, lang, toggleLang, t, 
+    customName, updateCustomName, 
+    userAliases, updateUserAlias,
+    userDepartments, updateUserDepartment 
+  } = useApp();
+  
   const router = useRouter();
 
   const [adminViewAll, setAdminViewAll] = useState(true);
@@ -28,12 +112,27 @@ export default function SettingsPage() {
   const [loadingStats, setLoadingStats] = useState(false);
   const [showUserList, setShowUserList] = useState(false);
   const [expandedUser, setExpandedUser] = useState(null);
+  
+  const [deptOptions, setDeptOptions] = useState([]);
 
   const isAdmin = session?.user?.email === "ho3363@gmail.com";
 
   useEffect(() => {
     const savedView = localStorage.getItem("adminViewAll");
     if (savedView !== null) setAdminViewAll(savedView === "true");
+
+    const fetchDepartments = async () => {
+      try {
+        const res = await fetch('/api/departments');
+        const data = await res.json();
+        if (data.success) {
+          setDeptOptions(data.data);
+        }
+      } catch (err) {
+        console.error("無法取得部門列表", err);
+      }
+    };
+    fetchDepartments();
   }, []);
 
   useEffect(() => {
@@ -84,6 +183,7 @@ export default function SettingsPage() {
       </header>
 
       <main style={{ maxWidth: "600px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        {/* Profile Section */}
         <section style={{ background: "var(--bg-surface)", borderRadius: "16px", border: "1px solid var(--border)", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
           <div style={{ padding: "1.25rem", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: "1rem" }}>
             <div style={{ width: "48px", height: "48px", borderRadius: "50%", background: "var(--bg-elevated)", border: "2px solid var(--border)", overflow: "hidden" }}>
@@ -105,6 +205,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {/* Global Settings Section */}
         <section style={{ background: "var(--bg-surface)", borderRadius: "16px", border: "1px solid var(--border)", padding: "0.5rem", boxShadow: "var(--shadow-sm)" }}>
           {isAdmin && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 0.75rem", borderBottom: "1px solid var(--border)" }}>
@@ -125,8 +226,9 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {/* 🌟 修正：移除 overflow: "hidden"，讓下拉選單可以順利超出版界 */}
         {isAdmin && (
-          <section style={{ background: "var(--bg-surface)", borderRadius: "16px", border: "1px solid var(--border)", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
+          <section style={{ background: "var(--bg-surface)", borderRadius: "16px", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", position: "relative", zIndex: 10 }}>
             <button onClick={() => setShowUserList(!showUserList)} style={{ width: "100%", padding: "1.25rem", background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", color: "var(--text-primary)", outline: "none", WebkitTapHighlightColor: "transparent" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                 <Users size={20} color="var(--accent)" />
@@ -142,17 +244,15 @@ export default function SettingsPage() {
                   <div style={{ textAlign: "center", padding: "1rem", fontSize: "0.85rem", color: "var(--text-muted)" }}>Loading...</div>
                 ) : adminStats.map((user, idx) => {
                   const isExpanded = expandedUser === user.email;
-                  
-                  // 🌟 套用名稱對照表
                   const displayName = userAliases[user.email] || user.email.split('@')[0];
 
                   return (
-                    <div key={idx} style={{ background: "var(--bg-elevated)", borderRadius: "12px", border: "1px solid var(--border)", overflow: "hidden" }}>
+                    // 🌟 修正：移除 overflow: "hidden"，並加上動態 zIndex 確保展開的卡片蓋在別的卡片上面
+                    <div key={idx} style={{ background: "var(--bg-elevated)", borderRadius: "12px", border: "1px solid var(--border)", position: "relative", zIndex: isExpanded ? 20 : 1 }}>
                       <button onClick={() => setExpandedUser(isExpanded ? null : user.email)} style={{ width: "100%", padding: "0.85rem 1rem", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", color: "var(--text-primary)", outline: "none", WebkitTapHighlightColor: "transparent" }}>
                         
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
                           <span style={{ fontSize: "0.9rem", fontWeight: 700 }}>{displayName}</span>
-                          {/* 如果有設定別名，底下顯示小字的真實 Email 以供辨識 */}
                           {userAliases[user.email] && <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>{user.email}</span>}
                         </div>
 
@@ -164,16 +264,32 @@ export default function SettingsPage() {
 
                       {isExpanded && (
                         <div style={{ display: "flex", flexDirection: "column" }}>
-                          {/* 🌟 新增：別名設定輸入框 */}
-                          <div style={{ padding: "0.6rem 1rem", borderTop: "1px dashed var(--border)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: "0.5rem", background: "var(--bg-base)" }}>
-                            <Edit3 size={14} color="var(--accent)" />
-                            <input
-                              type="text"
-                              placeholder={t("設定好記的名稱 (如: Kenji)", "Set Display Name...")}
-                              value={userAliases[user.email] || ""}
-                              onChange={(e) => updateUserAlias(user.email, e.target.value)}
-                              style={{ flex: 1, background: "transparent", border: "none", color: "var(--accent)", fontSize: "0.85rem", fontWeight: 600, outline: "none" }}
-                            />
+                          
+                          <div style={{ padding: "0.6rem 1rem", borderTop: "1px dashed var(--border)", borderBottom: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.5rem", background: "var(--bg-base)" }}>
+                            
+                            {/* 別名設定 */}
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                              <Edit3 size={14} color="var(--accent)" />
+                              <input
+                                type="text"
+                                placeholder={t("設定好記的名稱 (如: Kenji)", "Set Display Name...")}
+                                value={userAliases[user.email] || ""}
+                                onChange={(e) => updateUserAlias(user.email, e.target.value)}
+                                style={{ flex: 1, background: "transparent", border: "none", color: "var(--accent)", fontSize: "0.85rem", fontWeight: 600, outline: "none" }}
+                              />
+                            </div>
+
+                            {/* 動態下拉選單 */}
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                              <Briefcase size={14} color="#8b5cf6" />
+                              <DepartmentSelect 
+                                value={userDepartments[user.email] || ""} 
+                                onChange={(val) => updateUserDepartment(user.email, val)} 
+                                options={deptOptions} 
+                                t={t} 
+                              />
+                            </div>
+
                           </div>
 
                           <div style={{ padding: "0.85rem 1rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem" }}>

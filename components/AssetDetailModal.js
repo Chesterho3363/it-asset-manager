@@ -1,6 +1,7 @@
 "use client";
-import { X, Laptop, Monitor, Plug, Package, User, Calendar, Tag, Hash, FileText, Pencil, QrCode, Undo2 } from "lucide-react";
+import { X, Laptop, Monitor, Plug, Package, User, Calendar, Tag, Hash, FileText, Pencil, QrCode, Undo2, Users, Clock } from "lucide-react";
 import { useApp } from "../app/providers"; 
+import { useSession } from "next-auth/react";
 
 // 🌟 筆電改回 var(--accent)，且設定為無外框的實心/透色組合
 const categoryMeta = {
@@ -26,9 +27,27 @@ function isAssetOverdue(status, returnDate) {
   return new Date(returnDate) < today;
 }
 
-export default function AssetDetailModal({ asset, onClose, onEdit, onQR, onReturn, returning }) {
-  const { t } = useApp();
+export default function AssetDetailModal({ asset, onClose, onEdit, onQR, onReturn, returning, onBorrow }) {
+  const { t, userAliases } = useApp();
+  const { data: session } = useSession();
   if (!asset) return null;
+
+  const userEmail = session?.user?.email?.toLowerCase().trim();
+  const adminEmail = "ho3363@gmail.com";
+  const isAdmin = userEmail === adminEmail;
+  const isOwner = asset.owner?.toLowerCase().trim() === userEmail;
+
+  const userDisplayName = session?.user?.name || "";
+  const userAlias = userAliases[userEmail] || "";
+  const userEmailPrefix = userEmail ? userEmail.split('@')[0] : "";
+  const isCurrentBorrower = asset.status === "borrowed" && asset.borrower && (
+    asset.borrower.toLowerCase().trim() === userDisplayName.toLowerCase().trim() ||
+    asset.borrower.toLowerCase().trim() === userAlias.toLowerCase().trim() ||
+    asset.borrower.toLowerCase().trim() === userEmailPrefix.toLowerCase().trim() ||
+    asset.borrower.toLowerCase().trim() === userEmail
+  );
+
+  const ownerName = asset.owner ? ((userAliases || {})[asset.owner] || asset.owner.split('@')[0]) : null;
 
   const { text: noteText, specs } = parseSpecs(asset.note);
   const meta = categoryMeta[asset.category] || categoryMeta.other;
@@ -68,7 +87,7 @@ export default function AssetDetailModal({ asset, onClose, onEdit, onQR, onRetur
               <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.4rem", lineHeight: 1.2 }}>
                 {asset.model || t("未命名型號", "Unnamed Model")}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginTop: "0.4rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginTop: "0.4rem", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}># {asset.assetCode}</span>
                 {/* 🌟 無框透色分類標籤 */}
                 <span style={{ 
@@ -80,6 +99,31 @@ export default function AssetDetailModal({ asset, onClose, onEdit, onQR, onRetur
                 }}>
                   {t(meta.label[0], meta.label[1])}
                 </span>
+                {asset.isShared && (
+                  <span style={{ 
+                    fontSize: "0.75rem", padding: "0.2rem 0.6rem", borderRadius: "999px", 
+                    background: "rgba(14, 165, 233, 0.15)", 
+                    border: "none",
+                    color: "#0ea5e9", 
+                    fontWeight: 700,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.2rem"
+                  }}>
+                    <Users size={12} /> 
+                    {asset.shareWithEveryone !== false 
+                      ? t("與所有人共用", "Shared with everyone") 
+                      : (() => {
+                          const depts = asset.sharedDepts || [];
+                          const users = asset.sharedUsers || [];
+                          const parts = [];
+                          if (depts.length > 0) parts.push(depts.join(", "));
+                          if (users.length > 0) parts.push(`${users.length} ${t("位使用者", "users")}`);
+                          return t("共享給: ", "Shared with: ") + parts.join(" 及 ");
+                        })()
+                    }
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -114,6 +158,16 @@ export default function AssetDetailModal({ asset, onClose, onEdit, onQR, onRetur
               </>
             )}
           </div>
+
+          {!isOwner && ownerName && (
+            <div>
+              <SectionTitle icon={User} title={t("保管人資訊", "Keeper Info")} />
+              <div style={{ background: "var(--bg-elevated)", padding: "0.75rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "0.85rem", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <User size={16} style={{ color: "var(--accent)" }} />
+                <span>{ownerName} <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>({asset.owner})</span></span>
+              </div>
+            </div>
+          )}
 
           {asset.acquisitionDate && (
             <div>
@@ -159,7 +213,7 @@ export default function AssetDetailModal({ asset, onClose, onEdit, onQR, onRetur
         </div>
 
         <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid var(--border)", background: "var(--bg-surface)", display: "flex", gap: "0.75rem" }}>
-          {asset.status === "borrowed" && (
+          {asset.status === "borrowed" && (isAdmin || isOwner || isCurrentBorrower) && (
             <button onClick={() => { onReturn(asset); onClose(); }} disabled={returning} style={{ flex: 1, padding: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", background: "var(--success-soft)", border: "1px solid var(--success)", borderRadius: "10px", color: "var(--success)", cursor: "pointer", fontSize: "0.9rem", fontWeight: 700, opacity: returning ? 0.5 : 1 }}>
               <Undo2 size={18} /> {t("歸還", "Return")}
             </button>
@@ -167,9 +221,17 @@ export default function AssetDetailModal({ asset, onClose, onEdit, onQR, onRetur
           <button onClick={() => onQR(asset)} style={{ width: "48px", height: "48px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--text-primary)", cursor: "pointer", flexShrink: 0 }}>
             <QrCode size={20} />
           </button>
-          <button onClick={() => onEdit(asset)} style={{ flex: 1, padding: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", background: "var(--accent-soft)", border: "1px solid var(--accent)", borderRadius: "10px", color: "var(--accent)", cursor: "pointer", fontSize: "0.9rem", fontWeight: 700 }}>
-            <Pencil size={18} /> {t("編輯", "Edit")}
-          </button>
+          {isAdmin || isOwner ? (
+            <button onClick={() => onEdit(asset)} style={{ flex: 1, padding: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", background: "var(--accent-soft)", border: "1px solid var(--accent)", borderRadius: "10px", color: "var(--accent)", cursor: "pointer", fontSize: "0.9rem", fontWeight: 700 }}>
+              <Pencil size={18} /> {t("編輯", "Edit")}
+            </button>
+          ) : (
+            asset.isShared && asset.status === "available" && onBorrow && (
+              <button onClick={() => onBorrow(asset)} style={{ flex: 1, padding: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", background: "var(--warning-soft)", border: "1px solid var(--warning)", borderRadius: "10px", color: "var(--warning)", cursor: "pointer", fontSize: "0.9rem", fontWeight: 700 }}>
+                <Clock size={18} /> {t("借用", "Borrow")}
+              </button>
+            )
+          )}
         </div>
       </div>
     </div>

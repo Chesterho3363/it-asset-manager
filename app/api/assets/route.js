@@ -58,7 +58,8 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { assetCode, category } = body; // 🌟 抓出 category
+    // 🌟 修正：從 body 中把 department 也抓出來
+    const { assetCode, category, department } = body; 
 
     // 🌟 關鍵修正：後端類別驗證，補上 office 與 semi
     const allowedCategories = ["laptop", "monitor", "docking", "other", "office", "semi"];
@@ -77,6 +78,7 @@ export async function POST(request) {
       ...body,
       assetCode: assetCode.trim(),
       owner: session.user.email, 
+      department: department || "", // 🌟 將部門資訊寫入 Notion
     });
 
     return NextResponse.json({ success: true, data: asset }, { status: 201 });

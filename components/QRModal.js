@@ -4,9 +4,12 @@ import { X, Download, Printer } from "lucide-react";
 import { useApp } from "../app/providers"; 
 
 export default function QRModal({ asset, onClose }) {
-  const { t } = useApp();
+  const { t, userAliases } = useApp(); // 🌟 匯入 userAliases 名稱對照表
   const canvasRef = useRef(null);
   const [qrReady, setQrReady] = useState(false);
+
+  // 🌟 判斷並取得目前的保管人名稱（如果有設定自訂名稱就優先使用）
+  const ownerName = asset.owner ? ((userAliases || {})[asset.owner] || asset.owner.split('@')[0]) : null;
 
   // The QR code URL points to the asset detail (scan landing page)
   const qrUrl = typeof window !== "undefined"
@@ -19,19 +22,48 @@ export default function QRModal({ asset, onClose }) {
       QRCode.toCanvas(canvasRef.current, qrUrl, {
         width: 240,
         margin: 2,
+        errorCorrectionLevel: 'H', // 🌟 極重要：設定最高容錯率 (High)，這樣中間被文字遮擋也能正常掃描！
         color: { dark: "#0a0a0f", light: "#ffffff" },
       }, (err) => {
-        if (!err) setQrReady(true);
+        if (!err) {
+          // 🌟 在 QR Code 產生完畢後，把名字畫在正中間
+          if (ownerName) {
+            const canvas = canvasRef.current;
+            const ctx = canvas.getContext("2d");
+            const width = 240;
+            const center = width / 2;
+            
+            // 1. 設定文字樣式
+            ctx.font = "900 16px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            
+            // 2. 計算背景白框的大小 (文字寬度 + 左右各 10px 的 Padding)
+            const textWidth = ctx.measureText(ownerName).width;
+            const boxWidth = textWidth + 20; 
+            const boxHeight = 28;
+            
+            // 3. 畫出白色背景框 (把原本的 QR Code 蓋掉)
+            ctx.fillStyle = "#ffffff";
+            // 若想要圓角可以替換成 roundRect，但考慮瀏覽器相容性，fillRect 最穩
+            ctx.fillRect(center - boxWidth / 2, center - boxHeight / 2, boxWidth, boxHeight);
+            
+            // 4. 畫出名字文字
+            ctx.fillStyle = "#0a0a0f"; // 文字顏色
+            ctx.fillText(ownerName, center, center);
+          }
+          setQrReady(true);
+        }
       });
     });
-  }, [qrUrl]);
+  }, [qrUrl, ownerName]);
 
   const handleDownload = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const link = document.createElement("a");
     link.download = `QR-${asset.assetCode}.png`;
-    link.href = canvas.toDataURL();
+    link.href = canvas.toDataURL(); // 下載的圖片也會包含中間的名字！
     link.click();
   };
 
