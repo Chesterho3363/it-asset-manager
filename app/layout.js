@@ -1,12 +1,13 @@
 import { Providers } from "./providers";
 import "./globals.css";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  viewportFit: 'cover', // 🌟 關鍵：允許網頁延伸到瀏海與底部邊界
+  viewportFit: 'cover',
 };
 
 export const metadata = {
@@ -14,9 +15,9 @@ export const metadata = {
   description: "企業 IT 資產借還管理系統",
   manifest: "/manifest.json",
   appleWebApp: {
-    capable: true, // 🌟 關鍵：允許安裝為 Web App (隱藏 Safari 網址列)
-    statusBarStyle: "black-translucent", // 讓頂部時間/電量列變成透明或黑色
-    title: "資產管理", // 安裝到桌面時的 App 名稱
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "資產管理",
   },
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
@@ -29,7 +30,9 @@ export default function RootLayout({ children }) {
     <html lang="zh-TW" suppressHydrationWarning>
       <body className="antialiased" suppressHydrationWarning>
         <Providers>
-          {children}
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </Providers>
       </body>
     </html>

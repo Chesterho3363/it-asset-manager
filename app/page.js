@@ -77,8 +77,15 @@ export default function AssetsPage({ showSharedOnly = false }) {
   const isAdmin = userEmail === adminEmail;
 
   // ── SWR Data Fetching ──
+  // 讀取管理員的「查看全公司」開關，並將其作為 SWR key 的一部分
+  // 這樣當設定頁面切換開關並執行 router.refresh() 後，SWR 就會用不同的 URL 重新拉取
+  const adminViewAll = isAdmin
+    ? (typeof window !== "undefined" ? localStorage.getItem("adminViewAll") !== "false" : true)
+    : false;
+  const apiUrl = isAdmin ? `/api/assets?adminView=${adminViewAll}` : "/api/assets";
+
   const fetcher = (url) => fetch(url).then(res => res.json());
-  const { data: assetsData, error, isLoading, mutate: fetchAssets } = useSWR("/api/assets", fetcher, {
+  const { data: assetsData, error, isLoading, mutate: fetchAssets } = useSWR(apiUrl, fetcher, {
     revalidateOnFocus: true,
     dedupingInterval: 5000,
   });
@@ -93,6 +100,7 @@ export default function AssetsPage({ showSharedOnly = false }) {
   const [filterDepartment, setFilterDepartment] = useState("all");
   const [sortBy, setSortBy] = useState("assetCode");
   const [showForm, setShowForm] = useState(false);
+  const [isBorrowMode, setIsBorrowMode] = useState(false);
   const [editAsset, setEditAsset] = useState(null);
   const [returningId, setReturningId] = useState(null);
   const [qrAsset, setQrAsset] = useState(null);
@@ -166,6 +174,8 @@ export default function AssetsPage({ showSharedOnly = false }) {
       }
       if (!hasAccess) return false;
       if (showSharedOnly && !a.isShared) return false;
+      // 主畫面只顯示個人資產，共用資產已在「共用裝置」頁面顯示，避免重複
+      if (!showSharedOnly && a.isShared) return false;
       if (showOnlyIssues && !a.issueId && !a.doe) return false;
       
       const q = search.toLowerCase();
@@ -195,7 +205,10 @@ export default function AssetsPage({ showSharedOnly = false }) {
 
   const stats = useMemo(() => {
     const s = { total: 0, available: 0, borrowed: 0, overdue: 0 };
-    baseAssets.forEach(a => {
+    // 統計範圍跟當前頁面一致：
+    // 共用裝置頁 → 只統計共用資產；主畫面 → 只統計個人資產
+    const statBase = baseAssets.filter(a => showSharedOnly ? a.isShared : !a.isShared);
+    statBase.forEach(a => {
       s.total++;
       if (a.status === "available") s.available++;
       if (a.status === "borrowed") {
@@ -204,7 +217,7 @@ export default function AssetsPage({ showSharedOnly = false }) {
       }
     });
     return s;
-  }, [baseAssets]);
+  }, [baseAssets, showSharedOnly]);
 
   const hasActiveFilters = search || filterStatus !== "all" || filterCategory !== "all" || filterDepartment !== "all" || sortBy !== "assetCode";
 

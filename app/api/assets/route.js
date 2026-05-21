@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAllAssets, createAsset } from "@/lib/notion";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import { createAssetSchema, formatZodError } from "@/lib/validation";
 
 // ─── GET /api/assets ──────────────────────────────────────────────────────────
 export async function GET(request) {
@@ -21,18 +22,12 @@ export async function GET(request) {
     const isOwnerAdmin = userEmail === adminEmail;
 
     const { searchParams } = new URL(request.url);
-    
-    // 🌟 關鍵新增：接收前端傳來的視角參數
     const adminViewParam = searchParams.get("adminView");
-    
-    // 🌟 判斷邏輯：如果是管理員，且前端「沒有」明確傳送 false，才開啟全域視角
     const shouldViewAll = isOwnerAdmin && adminViewParam !== "false";
 
     const filters = {
       category: searchParams.get("category") || undefined,
       status: searchParams.get("status") || undefined,
-      // 如果要看全部 -> undefined (不限制 owner)
-      // 如果是一般人，或是管理員把開關切掉了 -> 嚴格限制只能抓自己的 Email
       owner: shouldViewAll ? undefined : userEmail,
     };
 
@@ -57,28 +52,27 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: "權限不足，請先登入" }, { status: 401 });
     }
 
-    const body = await request.json();
-    // 🌟 修正：從 body 中把 department 也抓出來
-    const { assetCode, category, department } = body; 
-
-    // 🌟 關鍵修正：後端類別驗證，補上 office 與 semi
-    const allowedCategories = ["laptop", "monitor", "docking", "other", "office", "semi"];
-    if (category && !allowedCategories.includes(category)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: `category 必須為以下其一 : ${allowedCategories.join(", ")}` 
-      }, { status: 400 });
+    // ── Zod 嚴格驗證 ──
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: "請求格式錯誤：無效的 JSON 格式" }, { status: 400 });
     }
 
-    if (!assetCode?.trim()) {
-      return NextResponse.json({ success: false, error: "assetCode 為必填" }, { status: 400 });
+    const result = createAssetSchema.safeParse(body);
+    if (!result.success) {
+      const message = formatZodError(result.error);
+      console.warn("[POST /api/assets] Validation failed:", message, "| Body:", JSON.stringify(body));
+      return NextResponse.json({ success: false, error: message }, { status: 400 });
     }
+
+    const validated = result.data;
 
     const asset = await createAsset({
-      ...body,
-      assetCode: assetCode.trim(),
-      owner: session.user.email, 
-      department: department || "", // 🌟 將部門資訊寫入 Notion
+      ...validated,
+      assetCode: validated.assetCode.trim(),
+      owner: session.user.email,
     });
 
     return NextResponse.json({ success: true, data: asset }, { status: 201 });

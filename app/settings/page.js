@@ -8,6 +8,7 @@ import {
   Laptop, Monitor, Plug, Package, Briefcase, Layers 
 } from "lucide-react";
 import { useApp } from "../providers";
+import ErrorLogViewer from "../../components/ErrorLogViewer";
 
 const categoryIcons = {
   laptop:  { icon: Laptop,    label: ["筆電", "Laptop"], color: "var(--accent)", softColor: "var(--accent-soft)" },
@@ -315,6 +316,22 @@ export default function SettingsPage() {
                 })}
               </div>
             )}
+          </section>
+        )}
+
+        {/* ── 錯誤日誌 (僅管理員) ── */}
+        {session?.user?.email?.toLowerCase() === "ho3363@gmail.com" && (
+          <section style={{ marginTop: "1.5rem", background: "var(--bg-surface)", borderRadius: "16px", border: "1px solid var(--border)", overflow: "hidden" }}>
+            <div style={{ padding: "1rem 1.25rem", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <ShieldAlert size={16} color="var(--danger)" />
+              <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)" }}>{t("錯誤日誌", "Error Logs")}</span>
+            </div>
+            <div style={{ padding: "1rem 1.25rem" }}>
+              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "1rem" }}>
+                {t("記錄於此裝置上發生過的前端錯誤，供開發者分析與排查。", "Frontend errors captured on this device for developer analysis.")}
+              </p>
+              <ErrorLogViewer />
+            </div>
           </section>
         )}
       </main>
