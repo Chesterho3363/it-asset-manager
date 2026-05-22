@@ -40,12 +40,17 @@ const specSchema = {
 };
 
 export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly = false }) {
-  const { t } = useApp();
+  const { t, offlineSafeFetch, userDepartments, deptManagers } = useApp();
   const { data: session } = useSession();
   const userEmail = session?.user?.email?.toLowerCase().trim();
   const adminEmail = "ho3363@gmail.com";
   const isAdmin = userEmail === adminEmail;
   const isOwner = !editData || (editData.owner?.toLowerCase().trim() === userEmail);
+
+  const displayDept = editData?.department || (editData?.owner ? userDepartments[editData.owner] : null);
+  const isDeptManager = userEmail && deptManagers?.[userEmail] && displayDept && 
+    deptManagers[userEmail].toLowerCase().trim() === displayDept.toLowerCase().trim();
+  const canEdit = !editData || isAdmin || isOwner || isDeptManager;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -125,6 +130,12 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
     setLoading(true);
     setError("");
 
+    if (!canEdit && !isBorrowOnly) {
+      setError(t("您沒有權限編輯此資產", "You do not have permission to edit this asset"));
+      setLoading(false);
+      return;
+    }
+
     if (isBorrowOnly) {
       if (!borrower?.trim()) {
         setError(t("請填寫借用人", "Borrower is required"));
@@ -175,7 +186,7 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
       const url = editData ? `/api/assets/${editData.id}` : `/api/assets`;
       const method = editData ? "PATCH" : "POST";
       
-      const res = await fetch(url, {
+      const res = await offlineSafeFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -183,7 +194,7 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
       
       const data = await res.json();
       if (data.success) {
-        onSuccess(); 
+        onSuccess(data, editData ? "edit" : "add"); 
         onClose(); 
       } else {
         setError(data.error || "提交失敗");
@@ -196,12 +207,22 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
   };
 
   const handleDelete = async () => {
+    if (!canEdit) {
+      setError(t("您沒有權限刪除此資產", "You do not have permission to delete this asset"));
+      return;
+    }
     if (!confirm(t("確定要刪除此資產？此操作無法復原。", "Delete this asset?"))) return;
     setLoading(true);
     try {
-      await fetch(`/api/assets/${editData.id}`, { method: "DELETE" });
-      onSuccess(); 
-      onClose(); 
+      const res = await offlineSafeFetch(`/api/assets/${editData.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        onSuccess(data, "delete"); 
+        onClose(); 
+      } else {
+        setError(data.error || "刪除失敗");
+        setLoading(false);
+      }
     } catch (err) {
       setError("刪除失敗");
       setLoading(false);
@@ -236,6 +257,12 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
 
          {/* Body */}
          <div style={{ padding: "1.5rem", overflowY: "auto", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+            {!canEdit && !isBorrowOnly && (
+              <div style={{ padding: "0.75rem", background: "var(--danger-soft)", color: "var(--danger)", borderRadius: "8px", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <AlertCircle size={16} />
+                {t("您沒有權限編輯此資產", "You do not have permission to edit this asset")}
+              </div>
+            )}
             {error && <div style={{ padding: "0.75rem", background: "var(--danger-soft)", color: "var(--danger)", borderRadius: "8px", fontSize: "0.85rem", fontWeight: 600 }}>{error}</div>}
             
             {isBorrowOnly ? (
@@ -254,18 +281,18 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", minWidth: 0 }}>
                     <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-secondary)" }}>{t("資產編號", "Asset Code")} <span style={{ color: "var(--danger)" }}>*</span></label>
-                    <input value={assetCode} onChange={e => setAssetCode(e.target.value)} placeholder="e.g. 151100493051" style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.7rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.9rem", outline: "none" }} />
+                    <input value={assetCode} onChange={e => setAssetCode(e.target.value)} disabled={!canEdit} placeholder="e.g. 151100493051" style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.7rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.9rem", outline: "none", opacity: canEdit ? 1 : 0.7 }} />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", minWidth: 0 }}>
                     <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-secondary)" }}>{t("型號", "Model")}</label>
-                    <input value={model} onChange={e => setModel(e.target.value)} placeholder="e.g. Hendrixx" style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.7rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.9rem", outline: "none" }} />
+                    <input value={model} onChange={e => setModel(e.target.value)} disabled={!canEdit} placeholder="e.g. Hendrixx" style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.7rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.9rem", outline: "none", opacity: canEdit ? 1 : 0.7 }} />
                   </div>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", minWidth: 0 }}>
                     <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-secondary)" }}>{t("資產取得日", "Acquisition Date")}</label>
-                    <input type="date" value={acquisitionDate} onChange={e => setAcquisitionDate(e.target.value)} style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.7rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.9rem", outline: "none", colorScheme: "dark" }} />
+                    <input type="date" value={acquisitionDate} onChange={e => setAcquisitionDate(e.target.value)} disabled={!canEdit} style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.7rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.9rem", outline: "none", colorScheme: "dark", opacity: canEdit ? 1 : 0.7 }} />
                   </div>
                   
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", minWidth: 0 }}>
@@ -273,7 +300,8 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
                     <select 
                       value={department} 
                       onChange={e => setDepartment(e.target.value)} 
-                      style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.7rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.9rem", outline: "none", cursor: "pointer" }}
+                      disabled={!canEdit}
+                      style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.7rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.9rem", outline: "none", cursor: canEdit ? "pointer" : "not-allowed", opacity: canEdit ? 1 : 0.7 }}
                     >
                       <option value="">{t("未指定", "Unassigned")}</option>
                       {deptOptions.map(dept => (
@@ -287,7 +315,7 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
                   <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-secondary)" }}>{t("類別", "Category")}</label>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
                     {categories.map(c => (
-                      <button key={c.id} type="button" onClick={() => setCategory(c.id)} style={{ padding: "0.6rem", borderRadius: "8px", border: category === c.id ? `1px solid ${c.color}` : "1px solid var(--border)", background: category === c.id ? "var(--text-primary)" : "var(--bg-elevated)", color: category === c.id ? "var(--bg-base)" : "var(--text-secondary)", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", cursor: "pointer", transition: "all 0.2s" }}>
+                      <button key={c.id} type="button" onClick={() => canEdit && setCategory(c.id)} disabled={!canEdit} style={{ padding: "0.6rem", borderRadius: "8px", border: category === c.id ? `1px solid ${c.color}` : "1px solid var(--border)", background: category === c.id ? "var(--text-primary)" : "var(--bg-elevated)", color: category === c.id ? "var(--bg-base)" : "var(--text-secondary)", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", cursor: canEdit ? "pointer" : "not-allowed", transition: "all 0.2s", opacity: canEdit ? 1 : 0.7 }}>
                         <c.icon size={16} color={category === c.id ? "var(--bg-base)" : c.color} /> {c.label}
                       </button>
                     ))}
@@ -297,10 +325,10 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
                   <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-secondary)" }}>{t("狀態", "Status")}</label>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                    <button type="button" onClick={() => setStatus("available")} style={{ padding: "0.6rem", borderRadius: "8px", border: status === "available" ? "1px solid var(--success)" : "1px solid var(--border)", background: status === "available" ? "var(--success-soft)" : "var(--bg-elevated)", color: status === "available" ? "var(--success)" : "var(--text-secondary)", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", cursor: "pointer" }}>
+                    <button type="button" onClick={() => canEdit && setStatus("available")} disabled={!canEdit} style={{ padding: "0.6rem", borderRadius: "8px", border: status === "available" ? "1px solid var(--success)" : "1px solid var(--border)", background: status === "available" ? "var(--success-soft)" : "var(--bg-elevated)", color: status === "available" ? "var(--success)" : "var(--text-secondary)", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", cursor: canEdit ? "pointer" : "not-allowed", opacity: canEdit ? 1 : 0.7 }}>
                       <CheckCircle2 size={16} /> {t("可借用", "Available")}
                     </button>
-                    <button type="button" onClick={() => setStatus("borrowed")} style={{ padding: "0.6rem", borderRadius: "8px", border: status === "borrowed" ? "1px solid var(--warning)" : "1px solid var(--border)", background: status === "borrowed" ? "var(--warning-soft)" : "var(--bg-elevated)", color: status === "borrowed" ? "var(--warning)" : "var(--text-secondary)", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", cursor: "pointer" }}>
+                    <button type="button" onClick={() => canEdit && setStatus("borrowed")} disabled={!canEdit} style={{ padding: "0.6rem", borderRadius: "8px", border: status === "borrowed" ? "1px solid var(--warning)" : "1px solid var(--border)", background: status === "borrowed" ? "var(--warning-soft)" : "var(--bg-elevated)", color: status === "borrowed" ? "var(--warning)" : "var(--text-secondary)", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", cursor: canEdit ? "pointer" : "not-allowed", opacity: canEdit ? 1 : 0.7 }}>
                       <Hourglass size={16} /> {t("借出中", "Borrowed")}
                     </button>
                   </div>
@@ -310,11 +338,11 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
                   <div className="animate-fade-in" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", padding: "1rem", background: "var(--warning-soft)", borderRadius: "12px", border: "1px solid rgba(245,158,11,0.2)" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", minWidth: 0 }}>
                       <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--warning)" }}>{t("借用人", "Borrower")}</label>
-                      <input value={borrower} onChange={e => setBorrower(e.target.value)} style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.6rem", borderRadius: "6px", border: "1px solid rgba(245,158,11,0.3)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: "0.85rem", outline: "none" }} />
+                      <input value={borrower} onChange={e => setBorrower(e.target.value)} disabled={!canEdit} style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.6rem", borderRadius: "6px", border: "1px solid rgba(245,158,11,0.3)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: "0.85rem", outline: "none", opacity: canEdit ? 1 : 0.7 }} />
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", minWidth: 0 }}>
                       <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--warning)" }}>{t("預計歸還日", "Return Date")}</label>
-                      <input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.6rem", borderRadius: "6px", border: "1px solid rgba(245,158,11,0.3)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: "0.85rem", outline: "none", colorScheme: "dark" }} />
+                      <input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} disabled={!canEdit} style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.6rem", borderRadius: "6px", border: "1px solid rgba(245,158,11,0.3)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: "0.85rem", outline: "none", colorScheme: "dark", opacity: canEdit ? 1 : 0.7 }} />
                     </div>
                   </div>
                 )}
@@ -331,8 +359,9 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
                           <input 
                             value={specs[field.key] || ""} 
                             onChange={e => handleSpecChange(field.key, e.target.value)} 
+                            disabled={!canEdit}
                             placeholder={field.placeholder} 
-                            style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.6rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: "0.85rem", outline: "none" }} 
+                            style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.6rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: "0.85rem", outline: "none", opacity: canEdit ? 1 : 0.7 }} 
                           />
                         </div>
                       ))}
@@ -347,11 +376,11 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", minWidth: 0 }}>
                       <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text-secondary)" }}>ISSUE ID</label>
-                      <input value={issueId} onChange={e => setIssueId(e.target.value)} placeholder="e.g. PROJ-1234" style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.6rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: "0.85rem", outline: "none" }} />
+                      <input value={issueId} onChange={e => setIssueId(e.target.value)} disabled={!canEdit} placeholder="e.g. PROJ-1234" style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.6rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: "0.85rem", outline: "none", opacity: canEdit ? 1 : 0.7 }} />
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", minWidth: 0 }}>
                       <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text-secondary)" }}>DOE / 用途</label>
-                      <input value={doe} onChange={e => setDoe(e.target.value)} placeholder="e.g. 專案測試 A" style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.6rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: "0.85rem", outline: "none" }} />
+                      <input value={doe} onChange={e => setDoe(e.target.value)} disabled={!canEdit} placeholder="e.g. 專案測試 A" style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.6rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: "0.85rem", outline: "none", opacity: canEdit ? 1 : 0.7 }} />
                     </div>
                   </div>
                 </div>
@@ -385,8 +414,8 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
                       <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "0.5rem", paddingTop: "1rem", borderTop: "1px dashed var(--border)" }}>
                         
                         <div 
-                          onClick={() => setShareWithEveryone(!shareWithEveryone)} 
-                          style={{ display: "flex", alignItems: "center", gap: "0.6rem", cursor: "pointer", padding: "0.5rem 0.75rem", background: shareWithEveryone ? "var(--accent-soft)" : "transparent", border: shareWithEveryone ? "1px solid var(--accent)" : "1px solid transparent", borderRadius: "8px", transition: "all 0.2s" }}
+                          onClick={() => !canEdit ? null : setShareWithEveryone(!shareWithEveryone)} 
+                          style={{ display: "flex", alignItems: "center", gap: "0.6rem", cursor: canEdit ? "pointer" : "not-allowed", opacity: canEdit ? 1 : 0.7, background: shareWithEveryone ? "var(--accent-soft)" : "transparent", border: shareWithEveryone ? "1px solid var(--accent)" : "1px solid transparent", borderRadius: "8px", transition: "all 0.2s" }}
                         >
                           <div style={{ width: "20px", height: "20px", borderRadius: "4px", border: shareWithEveryone ? "none" : "2px solid var(--text-muted)", background: shareWithEveryone ? "var(--accent)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}>
                             {shareWithEveryone && <CheckCircle2 size={14} color="var(--bg-base)" strokeWidth={3} />}
@@ -406,7 +435,8 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
                                   if (val && !sharedDepts.includes(val)) setSharedDepts([...sharedDepts, val]); 
                                   e.target.value = ""; 
                                 }} 
-                                style={{ width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.85rem", outline: "none", cursor: "pointer" }}
+                                disabled={!canEdit}
+                                style={{ width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.85rem", outline: "none", cursor: canEdit ? "pointer" : "not-allowed", opacity: canEdit ? 1 : 0.7 }}
                               >
                                 <option value="">{t("選擇部門...", "Select department...")}</option>
                                 {deptOptions.map(dept => (
@@ -418,7 +448,9 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
                                   {sharedDepts.map(dept => (
                                     <span key={dept} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.75rem", padding: "0.2rem 0.5rem", background: "rgba(139, 92, 246, 0.15)", color: "#8b5cf6", borderRadius: "4px", fontWeight: 600 }}>
                                       {dept}
-                                      <button type="button" onClick={() => setSharedDepts(sharedDepts.filter(d => d !== dept))} style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "inherit", display: "flex" }}><X size={12}/></button>
+                                      {canEdit && (
+                                        <button type="button" onClick={() => setSharedDepts(sharedDepts.filter(d => d !== dept))} style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "inherit", display: "flex" }}><X size={12}/></button>
+                                      )}
                                     </span>
                                   ))}
                                 </div>
@@ -428,26 +460,28 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
                             <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
                               <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-secondary)" }}>{t("分享給特定使用者 (Email 或名稱)", "Share with Specific Users")}</label>
                               <div style={{ display: "flex", gap: "0.4rem" }}>
-                                <input value={newUser} onChange={e => setNewUser(e.target.value)} onKeyDown={e => {
+                                <input value={newUser} onChange={e => setNewUser(e.target.value)} disabled={!canEdit} onKeyDown={e => {
                                   if (e.key === "Enter" && newUser.trim()) {
                                     e.preventDefault();
                                     if (!sharedUsers.includes(newUser.trim())) setSharedUsers([...sharedUsers, newUser.trim()]);
                                     setNewUser("");
                                   }
-                                }} placeholder="e.g. user@example.com" style={{ flex: 1, padding: "0.6rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.85rem", outline: "none" }} />
+                                }} placeholder="e.g. user@example.com" style={{ flex: 1, padding: "0.6rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.85rem", outline: "none", opacity: canEdit ? 1 : 0.7 }} />
                                 <button type="button" onClick={() => {
                                   if (newUser.trim() && !sharedUsers.includes(newUser.trim())) {
                                     setSharedUsers([...sharedUsers, newUser.trim()]);
                                     setNewUser("");
                                   }
-                                }} style={{ padding: "0 0.8rem", background: "var(--accent-soft)", border: "1px solid var(--accent)", color: "var(--accent)", borderRadius: "6px", fontWeight: 600, fontSize: "0.85rem", cursor: "pointer" }}>{t("新增", "Add")}</button>
+                                }} disabled={!canEdit} style={{ padding: "0 0.8rem", background: "var(--accent-soft)", border: "1px solid var(--accent)", color: "var(--accent)", borderRadius: "6px", fontWeight: 600, fontSize: "0.85rem", cursor: canEdit ? "pointer" : "not-allowed", opacity: canEdit ? 1 : 0.7 }}>{t("新增", "Add")}</button>
                               </div>
                               {sharedUsers.length > 0 && (
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.4rem" }}>
                                   {sharedUsers.map(user => (
                                     <span key={user} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.75rem", padding: "0.2rem 0.5rem", background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)", borderRadius: "4px", fontWeight: 600 }}>
                                       {user}
-                                      <button type="button" onClick={() => setSharedUsers(sharedUsers.filter(u => u !== user))} style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "inherit", display: "flex" }}><X size={12}/></button>
+                                      {canEdit && (
+                                        <button type="button" onClick={() => setSharedUsers(sharedUsers.filter(u => u !== user))} style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "inherit", display: "flex" }}><X size={12}/></button>
+                                      )}
                                     </span>
                                   ))}
                                 </div>
@@ -462,7 +496,7 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", minWidth: 0 }}>
                   <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-secondary)" }}>{t("備註", "Note")}</label>
-                  <textarea value={noteText} onChange={e => setNoteText(e.target.value)} rows={3} style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.7rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.9rem", outline: "none", resize: "vertical" }} />
+                  <textarea value={noteText} onChange={e => setNoteText(e.target.value)} disabled={!canEdit} rows={3} style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.7rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.9rem", outline: "none", resize: "vertical", opacity: canEdit ? 1 : 0.7 }} />
                 </div>
               </>
             )}
@@ -471,7 +505,7 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
 
          {/* Footer */}
          <div style={{ padding: "1.25rem 1.5rem", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-surface)", flexShrink: 0 }}>
-            {editData && !isBorrowOnly ? (
+            {editData && !isBorrowOnly && canEdit ? (
               <button onClick={handleDelete} disabled={loading} style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.6rem 1rem", borderRadius: "8px", border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", fontWeight: 600, cursor: "pointer" }}>
                 <Trash2 size={16} /> {t("刪除", "Delete")}
               </button>
@@ -480,7 +514,7 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
               <button onClick={onClose} disabled={loading} style={{ padding: "0.6rem 1.25rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontWeight: 600, cursor: "pointer" }}>
                 {t("取消", "Cancel")}
               </button>
-              <button onClick={handleSubmit} disabled={loading} style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.6rem 1.25rem", borderRadius: "8px", border: "none", background: "var(--text-primary)", color: "var(--bg-base)", fontWeight: 700, cursor: "pointer" }}>
+              <button onClick={handleSubmit} disabled={loading || (!canEdit && !isBorrowOnly)} style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.6rem 1.25rem", borderRadius: "8px", border: "none", background: (!canEdit && !isBorrowOnly) ? "var(--border)" : "var(--text-primary)", color: (!canEdit && !isBorrowOnly) ? "var(--text-muted)" : "var(--bg-base)", fontWeight: 700, cursor: (!canEdit && !isBorrowOnly) ? "not-allowed" : "pointer" }}>
                 {loading ? <Hourglass size={16} style={{ animation: "spin 1s infinite" }} /> : <Save size={16} />} 
                 {isBorrowOnly ? t("確認借用", "Confirm Borrow") : t("儲存", "Save")}
               </button>

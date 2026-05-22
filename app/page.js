@@ -70,7 +70,7 @@ function AssetCard({ asset, t, onView, haptic }) {
 }
 
 export default function AssetsPage({ showSharedOnly = false }) {
-  const { t, showOnlyIssues, userAliases, userDepartments } = useApp();
+  const { t, showOnlyIssues, userAliases, userDepartments, deptManagers, offlineSafeFetch } = useApp();
   const { data: session } = useSession();
   const userEmail = session?.user?.email?.toLowerCase().trim();
   const adminEmail = "ho3363@gmail.com";
@@ -141,11 +141,82 @@ export default function AssetsPage({ showSharedOnly = false }) {
     if (!confirm(t(`確定歸還「${asset.assetCode}」？`, `Return "${asset.assetCode}"?`))) return;
     haptic(60); 
     setReturningId(asset.id);
+
+    // 🌟 SWR 樂觀更新數據：立即將該資產狀態變為 available，borrower 清空
+    const optimisticData = {
+      ...assetsData,
+      data: assetsData.data.map(a => a.id === asset.id ? { ...a, status: "available", borrower: "", returnDate: null } : a)
+    };
+
     try { 
-      await fetch(`/api/assets/${asset.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "available", borrower: "", returnDate: null }) }); 
-      await fetchAssets(); 
+      await fetchAssets(
+        async () => {
+          const res = await offlineSafeFetch(`/api/assets/${asset.id}`, { 
+            method: "PATCH", 
+            headers: { "Content-Type": "application/json" }, 
+            body: JSON.stringify({ status: "available", borrower: "", returnDate: null }) 
+          });
+          const json = await res.json();
+          return {
+            ...assetsData,
+            data: assetsData.data.map(a => a.id === asset.id ? { ...a, ...json.data } : a)
+          };
+        },
+        {
+          optimisticData,
+          rollbackOnError: true,
+          populateCache: true,
+          revalidate: true
+        }
+      );
+    } catch (e) {
+      console.error("[Return Error] Failed to return asset:", e);
     } finally { 
       setReturningId(null); 
+    }
+  };
+
+  const handleFormSuccess = async (responseData, actionType) => {
+    if (!responseData || !responseData.success) {
+      fetchAssets();
+      return;
+    }
+
+    const { isOfflineBuffered, data: responseAsset } = responseData;
+
+    // 樂觀更新 SWR 快取
+    const optimisticData = {
+      ...assetsData,
+      data: assetsData?.data ? [...assetsData.data] : []
+    };
+
+    if (actionType === "delete") {
+      optimisticData.data = optimisticData.data.filter(a => a.id !== responseAsset.id);
+    } else if (actionType === "edit") {
+      optimisticData.data = optimisticData.data.map(a => a.id === responseAsset.id ? { ...a, ...responseAsset } : a);
+    } else if (actionType === "add") {
+      const newAsset = {
+        ...responseAsset,
+        owner: responseAsset.owner || userEmail,
+        status: responseAsset.status || "available"
+      };
+      optimisticData.data.unshift(newAsset);
+    }
+
+    try {
+      await fetchAssets(
+        async () => {
+          return optimisticData;
+        },
+        {
+          optimisticData,
+          rollbackOnError: true,
+          populateCache: true,
+          revalidate: !isOfflineBuffered
+        }
+      );
+    } catch (e) {
+      console.error("[Form Success Error] Failed to mutate cache:", e);
     }
   };
 
@@ -153,8 +224,12 @@ export default function AssetsPage({ showSharedOnly = false }) {
   const filtered = useMemo(() => {
     const filteredBase = baseAssets.filter(a => {
       const isOwner = userEmail && a.owner?.toLowerCase().trim() === userEmail;
+      const displayDept = a.department || (a.owner ? userDepartments[a.owner] : null);
+      const isDeptManager = userEmail && deptManagers?.[userEmail] && displayDept && 
+        deptManagers[userEmail].toLowerCase().trim() === displayDept.toLowerCase().trim();
+
       let hasAccess = false;
-      if (isAdmin || isOwner) {
+      if (isAdmin || isOwner || isDeptManager) {
         hasAccess = true;
       } else if (a.isShared) {
         if (a.shareWithEveryone !== false) {
@@ -431,12 +506,21 @@ export default function AssetsPage({ showSharedOnly = false }) {
                             onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                             <QrCode size={15} />
                           </button>
-                          <button onClick={(e) => { e.stopPropagation(); haptic(40); setEditAsset(asset); setShowForm(true); }} title={t("編輯","Edit")} 
-                            style={{ width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", borderRadius: "8px", color: "var(--accent)", cursor: "pointer", transition: "background 0.2s" }}
-                            onMouseEnter={e => e.currentTarget.style.background = "var(--accent-soft)"}
-                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                            <Pencil size={15} />
-                          </button>
+                          {(() => {
+                            const isOwner = userEmail && asset.owner?.toLowerCase().trim() === userEmail;
+                            const isDeptManager = userEmail && deptManagers?.[userEmail] && displayDept && 
+                              deptManagers[userEmail].toLowerCase().trim() === displayDept.toLowerCase().trim();
+                            const canEdit = isAdmin || isOwner || isDeptManager;
+                            
+                            return canEdit ? (
+                              <button onClick={(e) => { e.stopPropagation(); haptic(40); setEditAsset(asset); setShowForm(true); }} title={t("編輯","Edit")} 
+                                style={{ width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", borderRadius: "8px", color: "var(--accent)", cursor: "pointer", transition: "background 0.2s" }}
+                                onMouseEnter={e => e.currentTarget.style.background = "var(--accent-soft)"}
+                                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                                <Pencil size={15} />
+                              </button>
+                            ) : null;
+                          })()}
                         </div>
                       </td>
                     </tr>
@@ -468,7 +552,7 @@ export default function AssetsPage({ showSharedOnly = false }) {
         <Plus size={26} strokeWidth={2.5} className="fab-icon" />
       </button>
 
-      {showForm && <AssetForm editData={editAsset} onClose={() => { setShowForm(false); setIsBorrowMode(false); }} onSuccess={fetchAssets} isBorrowOnly={isBorrowMode} />}
+      {showForm && <AssetForm editData={editAsset} onClose={() => { setShowForm(false); setIsBorrowMode(false); }} onSuccess={handleFormSuccess} isBorrowOnly={isBorrowMode} />}
       {qrAsset && <QRModal asset={qrAsset} onClose={() => setQrAsset(null)} />}
       
       {viewAsset && <AssetDetailModal asset={viewAsset} onClose={() => setViewAsset(null)} onEdit={(a) => { haptic(); setEditAsset(a); setShowForm(true); setViewAsset(null); }} onBorrow={(a) => { haptic(); setEditAsset(a); setIsBorrowMode(true); setShowForm(true); setViewAsset(null); }} onQR={(a) => { haptic(); setQrAsset(a); setViewAsset(null); }} onReturn={handleReturn} returning={returningId === viewAsset?.id} />} 

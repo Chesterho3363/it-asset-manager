@@ -7,12 +7,15 @@ export default function ErrorLogViewer() {
   const [expanded, setExpanded] = useState(null);
 
   useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("__error_logs") || "[]");
-      setLogs(stored);
-    } catch {
-      setLogs([]);
-    }
+    const timer = setTimeout(() => {
+      try {
+        const stored = JSON.parse(localStorage.getItem("__error_logs") || "[]");
+        setLogs(stored);
+      } catch {
+        setLogs([]);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const clearLogs = () => {

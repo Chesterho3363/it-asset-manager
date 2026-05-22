@@ -27,8 +27,14 @@ function isAssetOverdue(status, returnDate) {
   return new Date(returnDate) < today;
 }
 
+const SectionTitle = ({ icon: Icon, title }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "var(--text-muted)", fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
+    <Icon size={14} /> {title}
+  </div>
+);
+
 export default function AssetDetailModal({ asset, onClose, onEdit, onQR, onReturn, returning, onBorrow }) {
-  const { t, userAliases } = useApp();
+  const { t, userAliases, userDepartments, deptManagers } = useApp();
   const { data: session } = useSession();
   if (!asset) return null;
 
@@ -36,6 +42,11 @@ export default function AssetDetailModal({ asset, onClose, onEdit, onQR, onRetur
   const adminEmail = "ho3363@gmail.com";
   const isAdmin = userEmail === adminEmail;
   const isOwner = asset.owner?.toLowerCase().trim() === userEmail;
+
+  const displayDept = asset.department || (asset.owner ? userDepartments[asset.owner] : null);
+  const isDeptManager = userEmail && deptManagers?.[userEmail] && displayDept && 
+    deptManagers[userEmail].toLowerCase().trim() === displayDept.toLowerCase().trim();
+  const canEdit = isAdmin || isOwner || isDeptManager;
 
   const userDisplayName = session?.user?.name || "";
   const userAlias = userAliases[userEmail] || "";
@@ -53,12 +64,6 @@ export default function AssetDetailModal({ asset, onClose, onEdit, onQR, onRetur
   const meta = categoryMeta[asset.category] || categoryMeta.other;
   const CategoryIcon = meta.icon;
   const overdue = isAssetOverdue(asset.status, asset.returnDate);
-
-  const SectionTitle = ({ icon: Icon, title }) => (
-    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "var(--text-muted)", fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-      <Icon size={14} /> {title}
-    </div>
-  );
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
@@ -213,7 +218,7 @@ export default function AssetDetailModal({ asset, onClose, onEdit, onQR, onRetur
         </div>
 
         <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid var(--border)", background: "var(--bg-surface)", display: "flex", gap: "0.75rem" }}>
-          {asset.status === "borrowed" && (isAdmin || isOwner || isCurrentBorrower) && (
+          {asset.status === "borrowed" && (isAdmin || isOwner || isCurrentBorrower || isDeptManager) && (
             <button onClick={() => { onReturn(asset); onClose(); }} disabled={returning} style={{ flex: 1, padding: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", background: "var(--success-soft)", border: "1px solid var(--success)", borderRadius: "10px", color: "var(--success)", cursor: "pointer", fontSize: "0.9rem", fontWeight: 700, opacity: returning ? 0.5 : 1 }}>
               <Undo2 size={18} /> {t("歸還", "Return")}
             </button>
@@ -221,7 +226,7 @@ export default function AssetDetailModal({ asset, onClose, onEdit, onQR, onRetur
           <button onClick={() => onQR(asset)} style={{ width: "48px", height: "48px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--text-primary)", cursor: "pointer", flexShrink: 0 }}>
             <QrCode size={20} />
           </button>
-          {isAdmin || isOwner ? (
+          {canEdit ? (
             <button onClick={() => onEdit(asset)} style={{ flex: 1, padding: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", background: "var(--accent-soft)", border: "1px solid var(--accent)", borderRadius: "10px", color: "var(--accent)", cursor: "pointer", fontSize: "0.9rem", fontWeight: 700 }}>
               <Pencil size={18} /> {t("編輯", "Edit")}
             </button>

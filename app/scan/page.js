@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ScanLine, CheckCircle2, AlertCircle, Loader2, ArrowLeft, QrCode, Barcode } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { mutate, useSWRConfig } from "swr";
 import Navbar from "../../components/Navbar";
 import BottomNav from "../../components/BottomNav";
 import AssetForm from "../../components/AssetForm";
@@ -18,7 +20,9 @@ function parseSpecs(noteStr) {
 
 // 🌟 將原本的掃描邏輯抽離成子元件
 function ScanContent() {
-  const { t } = useApp();
+  const { t, offlineSafeFetch, userAliases, userDepartments, deptManagers } = useApp();
+  const { data: session } = useSession();
+  const { cache } = useSWRConfig();
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -33,7 +37,28 @@ function ScanContent() {
   const [asset, setAsset] = useState(null);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [isBorrowMode, setIsBorrowMode] = useState(false);
   const [returning, setReturning] = useState(false);
+
+  const userEmail = session?.user?.email?.toLowerCase().trim();
+  const adminEmail = "ho3363@gmail.com";
+  const isAdmin = userEmail === adminEmail;
+  const isOwner = asset && asset.owner?.toLowerCase().trim() === userEmail;
+
+  const displayDept = asset?.department || (asset?.owner ? userDepartments[asset.owner] : null);
+  const isDeptManager = userEmail && deptManagers?.[userEmail] && displayDept && 
+    deptManagers[userEmail].toLowerCase().trim() === displayDept.toLowerCase().trim();
+  const canEdit = isAdmin || isOwner || isDeptManager;
+
+  const userDisplayName = session?.user?.name || "";
+  const userAlias = userAliases?.[userEmail] || "";
+  const userEmailPrefix = userEmail ? userEmail.split('@')[0] : "";
+  const isCurrentBorrower = asset?.status === "borrowed" && asset?.borrower && (
+    asset.borrower.toLowerCase().trim() === userDisplayName.toLowerCase().trim() ||
+    asset.borrower.toLowerCase().trim() === userAlias.toLowerCase().trim() ||
+    asset.borrower.toLowerCase().trim() === userEmailPrefix.toLowerCase().trim() ||
+    asset.borrower.toLowerCase().trim() === userEmail
+  );
 
   const haptic = (v = 40) => { if (navigator.vibrate) navigator.vibrate(v); };
 
@@ -44,14 +69,58 @@ function ScanContent() {
 
   const fetchByCode = async (code) => {
     setError("");
+
+    // 🌟 離線或網路 fetch 失敗時，使用 SWR 快取尋找
+    const searchSWRKeysForAsset = () => {
+      if (typeof window !== "undefined" && typeof cache.keys === "function") {
+        for (const key of cache.keys()) {
+          if (typeof key === "string" && key.startsWith("/api/assets")) {
+            const cachedValue = cache.get(key);
+            if (cachedValue && cachedValue.data) {
+              const found = cachedValue.data.find(a => a.assetCode === code);
+              if (found) {
+                return found;
+              }
+            }
+          }
+        }
+      }
+      return null;
+    };
+
+    // 如果確定處於離線狀態，直接用 SWR cache
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      const found = searchSWRKeysForAsset();
+      if (found) {
+        setAsset(found);
+        setMode("result");
+      } else {
+        setError(t(`離線模式下找不到資產「${code}」`, `Asset "${code}" not found in offline cache`));
+      }
+      return;
+    }
+
     try {
       const res = await fetch(`/api/assets?search=${encodeURIComponent(code)}`);
-      const data = await res.json();
-      const found = data.data?.find(a => a.assetCode === code);
-      if (found) { setAsset(found); setMode("result"); }
-      else setError(t(`找不到資產「${code}」`, `Asset "${code}" not found`));
-    } catch {
-      setError(t("查詢失敗", "Query failed"));
+      if (res.ok) {
+        const data = await res.json();
+        const found = data.data?.find(a => a.assetCode === code);
+        if (found) { 
+          setAsset(found); 
+          setMode("result"); 
+          return;
+        }
+      }
+      setError(t(`找不到資產「${code}」`, `Asset "${code}" not found`));
+    } catch (err) {
+      // 網路 fetch 丟出錯誤，嘗試用 SWR 快取做備份
+      const found = searchSWRKeysForAsset();
+      if (found) {
+        setAsset(found);
+        setMode("result");
+      } else {
+        setError(t("查詢失敗，且無快取資料", "Query failed and no cached data available"));
+      }
     }
   };
 
@@ -181,13 +250,50 @@ function ScanContent() {
   const handleReturn = async () => {
     if (!confirm(t(`確定歸還「${asset.assetCode}」？`, `Return "${asset.assetCode}"?`))) return;
     setReturning(true);
+    haptic(60);
+
+    const originalAsset = asset;
+    // 1. 樂觀更新 local state
+    setAsset(prev => ({
+      ...prev,
+      status: "available",
+      borrower: "",
+      returnDate: null
+    }));
+
     try {
-      await fetch(`/api/assets/${asset.id}`, {
+      // 2. 呼叫離線安全的 fetch
+      const res = await offlineSafeFetch(`/api/assets/${asset.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "available", borrower: "", returnDate: null }),
       });
-      await fetchByCode(asset.assetCode);
+      const json = await res.json();
+      const updatedAsset = { ...originalAsset, ...json.data, status: "available", borrower: "", returnDate: null };
+
+      // 更新 local state
+      setAsset(updatedAsset);
+
+      // 3. 樂觀更新全域 SWR 快取
+      mutate(
+        key => typeof key === "string" && key.startsWith("/api/assets"),
+        async (currentData) => {
+          if (!currentData || !currentData.data) return currentData;
+          return {
+            ...currentData,
+            data: currentData.data.map(a => a.id === asset.id ? updatedAsset : a)
+          };
+        },
+        { revalidate: !json.isOfflineBuffered }
+      );
+
+      // 在線時，重新 fetch 最新資料確保完全一致
+      if (!json.isOfflineBuffered) {
+        await fetchByCode(asset.assetCode);
+      }
+    } catch (err) {
+      console.error("[Return Error] Failed to return asset in scan:", err);
+      setAsset(originalAsset);
     } finally {
       setReturning(false);
     }
@@ -378,7 +484,7 @@ function ScanContent() {
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                  {asset.status === "borrowed" && (
+                  {asset.status === "borrowed" && (isAdmin || isOwner || isCurrentBorrower || isDeptManager) && (
                     <button onClick={handleReturn} disabled={returning} style={{
                       width: "100%", padding: "1rem",
                       background: "var(--success)", border: "none", borderRadius: "14px",
@@ -392,8 +498,8 @@ function ScanContent() {
                       {t("確認歸還", "Confirm Return")}
                     </button>
                   )}
-                  {asset.status === "available" && (
-                    <button onClick={() => { haptic(); setShowForm(true); }} style={{
+                  {asset.status === "available" && (canEdit || asset.isShared) && (
+                    <button onClick={() => { haptic(); setIsBorrowMode(true); setShowForm(true); }} style={{
                       width: "100%", padding: "1rem",
                       background: "var(--accent)", border: "none", borderRadius: "14px",
                       color: "var(--bg-base)", fontSize: "1rem", fontFamily: "var(--font-display)", 
@@ -403,15 +509,17 @@ function ScanContent() {
                       {t("借出此設備", "Borrow This Device")}
                     </button>
                   )}
-                  <button onClick={() => { haptic(); setShowForm(true); }} style={{
-                    width: "100%", padding: "0.875rem",
-                    background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "14px",
-                    color: "var(--text-secondary)", fontSize: "0.95rem", fontFamily: "var(--font-display)", 
-                    cursor: "pointer", fontWeight: 600,
-                    outline: "none", WebkitTapHighlightColor: "transparent"
-                  }} className="btn-spring">
-                    {t("編輯資產資訊", "Edit Asset Info")}
-                  </button>
+                  {canEdit && (
+                    <button onClick={() => { haptic(); setShowForm(true); }} style={{
+                      width: "100%", padding: "0.875rem",
+                      background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "14px",
+                      color: "var(--text-secondary)", fontSize: "0.95rem", fontFamily: "var(--font-display)", 
+                      cursor: "pointer", fontWeight: 600,
+                      outline: "none", WebkitTapHighlightColor: "transparent"
+                    }} className="btn-spring">
+                      {t("編輯資產資訊", "Edit Asset Info")}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -421,8 +529,49 @@ function ScanContent() {
       {showForm && asset && (
         <AssetForm
           editData={asset}
-          onClose={() => setShowForm(false)}
-          onSuccess={() => { setShowForm(false); fetchByCode(asset.assetCode); }}
+          isBorrowOnly={isBorrowMode}
+          onClose={() => { setShowForm(false); setIsBorrowMode(false); }}
+          onSuccess={async (responseData, actionType) => {
+            setShowForm(false);
+            setIsBorrowMode(false);
+            if (!responseData || !responseData.success) {
+              fetchByCode(asset.assetCode);
+              return;
+            }
+
+            const { isOfflineBuffered, data: responseAsset } = responseData;
+            
+            // 1. 樂觀更新當前的 local asset 狀態
+            if (actionType === "delete") {
+              setAsset(null);
+              setMode("scan");
+            } else {
+              setAsset(prev => ({ ...prev, ...responseAsset }));
+            }
+
+            // 2. 樂觀更新全域 SWR 快取
+            mutate(
+              key => typeof key === "string" && key.startsWith("/api/assets"),
+              async (currentData) => {
+                if (!currentData || !currentData.data) return currentData;
+                let newData = [...currentData.data];
+                if (actionType === "delete") {
+                  newData = newData.filter(a => a.id !== responseAsset.id);
+                } else if (actionType === "edit") {
+                  newData = newData.map(a => a.id === responseAsset.id ? { ...a, ...responseAsset } : a);
+                } else if (actionType === "add") {
+                  newData.unshift({ ...responseAsset, owner: responseAsset.owner || session?.user?.email });
+                }
+                return { ...currentData, data: newData };
+              },
+              { revalidate: !isOfflineBuffered }
+            );
+
+            // 3. 在線時，重新讀取
+            if (!isOfflineBuffered) {
+              fetchByCode(responseAsset.assetCode || asset.assetCode);
+            }
+          }}
         />
       )}
     </>

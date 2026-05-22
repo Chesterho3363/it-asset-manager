@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { 
   ChevronLeft, Moon, Sun, Languages, User, 
   ShieldAlert, Users, ChevronDown, Edit3,
-  Laptop, Monitor, Plug, Package, Briefcase, Layers 
+  Laptop, Monitor, Plug, Package, Briefcase, Layers,
+  Shield
 } from "lucide-react";
 import { useApp } from "../providers";
 import ErrorLogViewer from "../../components/ErrorLogViewer";
@@ -103,7 +104,8 @@ export default function SettingsPage() {
     theme, toggleTheme, lang, toggleLang, t, 
     customName, updateCustomName, 
     userAliases, updateUserAlias,
-    userDepartments, updateUserDepartment 
+    userDepartments, updateUserDepartment,
+    deptManagers, updateUserDeptManager
   } = useApp();
   
   const router = useRouter();
@@ -198,7 +200,7 @@ export default function SettingsPage() {
           {session && (
             <div style={{ padding: "1rem 1.25rem", borderBottom: "1px solid var(--border)" }}>
               <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", marginBottom: "0.5rem", textTransform: "uppercase" }}>{t("自訂您的顯示名稱", "Your Display Name")}</label>
-              <input type="text" value={customName} onChange={(e) => updateCustomName(e.target.value)} placeholder={session.user.name} style={{ width: "100%", padding: "0.7rem 0.8rem", borderRadius: "10px", background: "var(--bg-base)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none", transition: "border-color 0.2s" }} onFocus={e => e.target.style.borderColor = "var(--border-focus)"} onBlur={e => e.target.style.borderColor = "var(--border)"} />
+              <input type="text" value={customName} onChange={(e) => updateCustomName(e.target.value, session?.user?.email)} placeholder={session.user.name} style={{ width: "100%", padding: "0.7rem 0.8rem", borderRadius: "10px", background: "var(--bg-base)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none", transition: "border-color 0.2s" }} onFocus={e => e.target.style.borderColor = "var(--border-focus)"} onBlur={e => e.target.style.borderColor = "var(--border)"} />
             </div>
           )}
           <div style={{ padding: "0.75rem" }}>
@@ -289,6 +291,41 @@ export default function SettingsPage() {
                                 options={deptOptions} 
                                 t={t} 
                               />
+                            </div>
+
+                            {/* 部門管理人設定 */}
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", marginTop: "0.4rem", padding: "0.4rem 0.5rem", background: "var(--bg-elevated)", borderRadius: "8px", border: "1px solid var(--border)" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                <Shield size={14} color={(deptManagers[user.email] === userDepartments[user.email] && !!userDepartments[user.email]) ? "var(--accent)" : "var(--text-muted)"} />
+                                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)" }}>
+                                  {t("設為此部門的管理人", "Set as Dept Manager")}
+                                </span>
+                              </div>
+                              <label style={{ position: "relative", display: "inline-block", width: "36px", height: "20px", flexShrink: 0 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={deptManagers[user.email] === userDepartments[user.email] && !!userDepartments[user.email]}
+                                  disabled={!userDepartments[user.email]}
+                                  onChange={(e) => {
+                                    updateUserDeptManager(user.email, e.target.checked ? userDepartments[user.email] : "");
+                                  }}
+                                  style={{ opacity: 0, width: 0, height: 0, position: "absolute" }}
+                                />
+                                <span style={{
+                                  position: "absolute", cursor: userDepartments[user.email] ? "pointer" : "not-allowed", inset: 0,
+                                  background: (deptManagers[user.email] === userDepartments[user.email] && !!userDepartments[user.email]) ? "var(--accent)" : "var(--bg-hover)",
+                                  borderRadius: "20px", transition: "0.2s",
+                                  border: "1px solid var(--border)",
+                                  opacity: userDepartments[user.email] ? 1 : 0.5
+                                }}>
+                                  <span style={{
+                                    position: "absolute", height: "12px", width: "12px",
+                                    left: (deptManagers[user.email] === userDepartments[user.email] && !!userDepartments[user.email]) ? "20px" : "3px", bottom: "3px",
+                                    background: "var(--bg-surface)", borderRadius: "50%", transition: "0.2s",
+                                    boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+                                  }} />
+                                </span>
+                              </label>
                             </div>
 
                           </div>

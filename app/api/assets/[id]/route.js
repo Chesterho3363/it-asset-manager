@@ -1,8 +1,21 @@
 import { NextResponse } from "next/server";
-import { getAssetById, updateAsset, deleteAsset } from "@/lib/notion";
+import { getAssetById, updateAsset, deleteAsset, getSystemSettings } from "@/lib/notion";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { updateAssetSchema, formatZodError } from "@/lib/validation";
+
+// Helper functions for settings case-insensitive lookup
+const findUserDept = (settings, email) => {
+  if (!email || !settings.userDepartments) return "";
+  const key = Object.keys(settings.userDepartments).find(k => k.toLowerCase().trim() === email.toLowerCase().trim());
+  return key ? settings.userDepartments[key] : "";
+};
+
+const findUserDeptManager = (settings, email) => {
+  if (!email || !settings.deptManagers) return "";
+  const key = Object.keys(settings.deptManagers).find(k => k.toLowerCase().trim() === email.toLowerCase().trim());
+  return key ? settings.deptManagers[key] : "";
+};
 
 // ─── PATCH /api/assets/[id] ───────────────────────────────────────────────────
 export async function PATCH(request, { params }) {
@@ -36,20 +49,30 @@ export async function PATCH(request, { params }) {
     const validated = result.data;
 
     // ── 確認資產存在 ──
+    let existingAsset;
     try {
-      await getAssetById(id);
+      existingAsset = await getAssetById(id);
     } catch {
       return NextResponse.json({ success: false, error: "找不到指定資產" }, { status: 404 });
     }
 
-    // ── 權限確認：一般用戶只能更新自己的資產 ──
+    // ── 權限確認 ──
     const adminEmail = (process.env.ADMIN_EMAIL || "ho3363@gmail.com").toLowerCase().trim();
     const userEmail = session.user.email.toLowerCase().trim();
     const isAdmin = userEmail === adminEmail;
 
     if (!isAdmin) {
-      const existingAsset = await getAssetById(id);
-      if (existingAsset?.owner?.toLowerCase().trim() !== userEmail) {
+      const isOwner = existingAsset?.owner?.toLowerCase().trim() === userEmail;
+      let isDeptManager = false;
+      if (!isOwner) {
+        const settings = await getSystemSettings();
+        const owner = existingAsset?.owner || "";
+        const assetDept = (existingAsset?.department || findUserDept(settings, owner) || "").toLowerCase().trim();
+        const managedDept = (findUserDeptManager(settings, userEmail) || "").toLowerCase().trim();
+        isDeptManager = managedDept !== "" && assetDept !== "" && managedDept === assetDept;
+      }
+
+      if (!isOwner && !isDeptManager) {
         return NextResponse.json({ success: false, error: "權限不足：您無法修改其他人的資產" }, { status: 403 });
       }
     }
@@ -84,13 +107,25 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ success: false, error: "找不到指定資產" }, { status: 404 });
     }
 
-    // ── 權限確認：只有管理員或資產擁有者能刪除 ──
+    // ── 權限確認：只有管理員、資產擁有者或部門管理人能刪除 ──
     const adminEmail = (process.env.ADMIN_EMAIL || "ho3363@gmail.com").toLowerCase().trim();
     const userEmail = session.user.email.toLowerCase().trim();
     const isAdmin = userEmail === adminEmail;
 
-    if (!isAdmin && existingAsset?.owner?.toLowerCase().trim() !== userEmail) {
-      return NextResponse.json({ success: false, error: "權限不足：您無法刪除其他人的資產" }, { status: 403 });
+    if (!isAdmin) {
+      const isOwner = existingAsset?.owner?.toLowerCase().trim() === userEmail;
+      let isDeptManager = false;
+      if (!isOwner) {
+        const settings = await getSystemSettings();
+        const owner = existingAsset?.owner || "";
+        const assetDept = (existingAsset?.department || findUserDept(settings, owner) || "").toLowerCase().trim();
+        const managedDept = (findUserDeptManager(settings, userEmail) || "").toLowerCase().trim();
+        isDeptManager = managedDept !== "" && assetDept !== "" && managedDept === assetDept;
+      }
+
+      if (!isOwner && !isDeptManager) {
+        return NextResponse.json({ success: false, error: "權限不足：您無法刪除其他人的資產" }, { status: 403 });
+      }
     }
 
     const result = await deleteAsset(id);

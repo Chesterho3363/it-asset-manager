@@ -130,13 +130,21 @@ body {
 .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
+/* 🌟 Global Spin Animation */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
 /* 🌟 終極 iOS 鍵盤喚醒與防縮放修復 */
 html, body {
   -webkit-user-select: auto !important;
   user-select: auto !important;
 }
 
-input, textarea, select {
+input:not([type="checkbox"]):not([type="radio"]), textarea, select {
   -webkit-appearance: none !important; /* 解除 iOS 系統預設 UI 鎖定 */
   -webkit-user-select: auto !important;
   user-select: auto !important;

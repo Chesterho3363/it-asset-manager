@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAllAssets, createAsset } from "@/lib/notion";
+import { getAllAssets, createAsset, getSystemSettings } from "@/lib/notion";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { createAssetSchema, formatZodError } from "@/lib/validation";
@@ -25,10 +25,20 @@ export async function GET(request) {
     const adminViewParam = searchParams.get("adminView");
     const shouldViewAll = isOwnerAdmin && adminViewParam !== "false";
 
+    let managedDepartment = undefined;
+    if (!shouldViewAll) {
+      const settings = await getSystemSettings();
+      const userDeptManager = settings.deptManagers?.[userEmail];
+      if (userDeptManager && userDeptManager.trim() !== "") {
+        managedDepartment = userDeptManager.trim();
+      }
+    }
+
     const filters = {
       category: searchParams.get("category") || undefined,
       status: searchParams.get("status") || undefined,
       owner: shouldViewAll ? undefined : userEmail,
+      managedDepartment,
     };
 
     const assets = await getAllAssets(filters);

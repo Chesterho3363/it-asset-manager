@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Bell, Settings, User, BarChart2 } from "lucide-react";
+import { Bell, Settings, User, BarChart2, RefreshCw } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useApp } from "../app/providers";
@@ -12,7 +12,7 @@ export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { t, customName, showOnlyIssues, setShowOnlyIssues } = useApp();
+  const { t, customName, showOnlyIssues, setShowOnlyIssues, queueLength, isQueueSyncing, syncOfflineQueue } = useApp();
 
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -113,6 +113,40 @@ export default function Navbar() {
 
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "var(--bg-surface)", padding: "0.3rem", borderRadius: "999px", border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
         
+        {/* 🌟 離線同步指示器 */}
+        {queueLength > 0 && (
+          <button 
+            onClick={() => {
+              if (navigator.onLine) {
+                syncOfflineQueue();
+              }
+            }}
+            title={navigator.onLine ? t("點擊同步", "Click to sync") : t("處於離線狀態", "Offline")}
+            style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              gap: "4px", 
+              padding: "0.25rem 0.6rem", 
+              background: isQueueSyncing ? "var(--success-soft)" : "var(--warning-soft)", 
+              border: "none", 
+              borderRadius: "999px", 
+              color: isQueueSyncing ? "var(--success)" : "var(--warning)", 
+              cursor: navigator.onLine ? "pointer" : "default", 
+              fontSize: "0.75rem", 
+              fontWeight: 700,
+              outline: "none",
+              transition: "all 0.2s"
+            }}
+            className="btn-spring"
+          >
+            <RefreshCw 
+              size={12} 
+              className={isQueueSyncing ? "animate-spin" : ""}
+            />
+            <span>{queueLength}</span>
+          </button>
+        )}
+
         {/* 🌟 儀表板按鈕 */}
         <button onClick={() => router.push('/dashboard')} style={{ padding: "0.4rem", background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer", outline: "none", WebkitTapHighlightColor: "transparent" }}>
           <BarChart2 size={18} />
