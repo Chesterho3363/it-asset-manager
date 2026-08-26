@@ -34,7 +34,7 @@ const SectionTitle = ({ icon: Icon, title }) => (
 );
 
 export default function AssetDetailModal({ asset, onClose, onEdit, onQR, onReturn, returning, onBorrow }) {
-  const { t, userAliases, userDepartments, deptManagers } = useApp();
+  const { t, userAliases, userDepartments, deptManagers, categoryManagers } = useApp();
   const { data: session } = useSession();
   if (!asset) return null;
 

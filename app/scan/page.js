@@ -20,7 +20,7 @@ function parseSpecs(noteStr) {
 
 // 🌟 將原本的掃描邏輯抽離成子元件
 function ScanContent() {
-  const { t, offlineSafeFetch, userAliases, userDepartments, deptManagers } = useApp();
+  const { t, offlineSafeFetch, userAliases, userDepartments, deptManagers, categoryManagers } = useApp();
   const { data: session } = useSession();
   const { cache } = useSWRConfig();
   const router = useRouter();
@@ -48,7 +48,9 @@ function ScanContent() {
   const displayDept = asset?.department || (asset?.owner ? userDepartments[asset.owner] : null);
   const isDeptManager = userEmail && deptManagers?.[userEmail] && displayDept && 
     deptManagers[userEmail].toLowerCase().trim() === displayDept.toLowerCase().trim();
-  const canEdit = isAdmin || isOwner || isDeptManager;
+  const isCategoryManager = userEmail && categoryManagers?.[userEmail] && asset?.category &&
+    categoryManagers[userEmail].toLowerCase().trim() === asset.category.toLowerCase().trim();
+  const canEdit = isAdmin || isOwner || isDeptManager || isCategoryManager;
 
   const userDisplayName = session?.user?.name || "";
   const userAlias = userAliases?.[userEmail] || "";
