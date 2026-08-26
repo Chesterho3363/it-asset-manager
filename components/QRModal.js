@@ -59,11 +59,46 @@ export default function QRModal({ asset, onClose }) {
   }, [qrUrl, ownerName]);
 
   const handleDownload = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const qrCanvas = canvasRef.current;
+    if (!qrCanvas) return;
+    
+    // 🌟 建立一個新的 Canvas 來繪製「完整的資產標籤」
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    
+    const padding = 24;
+    const qrSize = qrCanvas.width; // 240
+    const textHeight = asset.model ? 65 : 40;
+    
+    canvas.width = qrSize + padding * 2;
+    canvas.height = qrSize + padding * 2 + textHeight;
+    
+    // 1. 畫白色背景
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // 2. 畫 QR Code
+    ctx.drawImage(qrCanvas, padding, padding);
+    
+    // 3. 畫下方資產編號
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#0a0a0f";
+    ctx.font = "bold 20px sans-serif";
+    ctx.fillText(asset.assetCode, canvas.width / 2, qrSize + padding + 35);
+    
+    // 4. 畫下方資產型號
+    if (asset.model) {
+      ctx.fillStyle = "#71717a";
+      ctx.font = "14px sans-serif";
+      // 如果型號過長，稍微截斷以防超出圖片
+      let displayModel = asset.model;
+      if (displayModel.length > 28) displayModel = displayModel.substring(0, 26) + "...";
+      ctx.fillText(displayModel, canvas.width / 2, qrSize + padding + 60);
+    }
+    
     const link = document.createElement("a");
-    link.download = `QR-${asset.assetCode}.png`;
-    link.href = canvas.toDataURL(); // 下載的圖片也會包含中間的名字！
+    link.download = `Asset-Label-${asset.assetCode}.png`;
+    link.href = canvas.toDataURL("image/png");
     link.click();
   };
 
