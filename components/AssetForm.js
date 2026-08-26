@@ -50,7 +50,8 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
   const displayDept = editData?.department || (editData?.owner ? userDepartments[editData.owner] : null);
   const isDeptManager = userEmail && deptManagers?.[userEmail] && displayDept && 
     deptManagers[userEmail].toLowerCase().trim() === displayDept.toLowerCase().trim();
-  const isCategoryManager = userEmail && categoryManagers?.[userEmail] && editData?.category?.toLowerCase() === categoryManagers[userEmail].toLowerCase();
+  const isCategoryManager = userEmail && categoryManagers?.[userEmail] && editData?.category && 
+    categoryManagers[userEmail].toLowerCase().trim() === editData.category.toLowerCase().trim();
   
   const canEdit = !editData || isAdmin || isOwner || isDeptManager || isCategoryManager;
   const canAssignOwner = isAdmin || isDeptManager || isCategoryManager;

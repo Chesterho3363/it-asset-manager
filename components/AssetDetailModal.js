@@ -46,7 +46,9 @@ export default function AssetDetailModal({ asset, onClose, onEdit, onQR, onRetur
   const displayDept = asset.department || (asset.owner ? userDepartments[asset.owner] : null);
   const isDeptManager = userEmail && deptManagers?.[userEmail] && displayDept && 
     deptManagers[userEmail].toLowerCase().trim() === displayDept.toLowerCase().trim();
-  const canEdit = isAdmin || isOwner || isDeptManager;
+  const isCategoryManager = userEmail && categoryManagers?.[userEmail] && asset.category &&
+    categoryManagers[userEmail].toLowerCase().trim() === asset.category.toLowerCase().trim();
+  const canEdit = isAdmin || isOwner || isDeptManager || isCategoryManager;
 
   const userDisplayName = session?.user?.name || "";
   const userAlias = userAliases[userEmail] || "";

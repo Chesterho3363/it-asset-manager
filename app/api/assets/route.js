@@ -88,7 +88,7 @@ export async function POST(request) {
     const asset = await createAsset({
       ...validated,
       assetCode: validated.assetCode.trim(),
-      owner: session.user.email,
+      owner: validated.owner !== undefined && validated.owner !== "" ? validated.owner : session.user.email,
     });
 
     return NextResponse.json({ success: true, data: asset }, { status: 201 });

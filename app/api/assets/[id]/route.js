@@ -17,6 +17,12 @@ const findUserDeptManager = (settings, email) => {
   return key ? settings.deptManagers[key] : "";
 };
 
+const findUserCategoryManager = (settings, email) => {
+  if (!email || !settings.categoryManagers) return "";
+  const key = Object.keys(settings.categoryManagers).find(k => k.toLowerCase().trim() === email.toLowerCase().trim());
+  return key ? settings.categoryManagers[key] : "";
+};
+
 // ─── PATCH /api/assets/[id] ───────────────────────────────────────────────────
 export async function PATCH(request, { params }) {
   try {
@@ -64,15 +70,21 @@ export async function PATCH(request, { params }) {
     if (!isAdmin) {
       const isOwner = existingAsset?.owner?.toLowerCase().trim() === userEmail;
       let isDeptManager = false;
+      let isCategoryManager = false;
+      
       if (!isOwner) {
         const settings = await getSystemSettings();
         const owner = existingAsset?.owner || "";
         const assetDept = (existingAsset?.department || findUserDept(settings, owner) || "").toLowerCase().trim();
         const managedDept = (findUserDeptManager(settings, userEmail) || "").toLowerCase().trim();
         isDeptManager = managedDept !== "" && assetDept !== "" && managedDept === assetDept;
+        
+        const assetCategory = (existingAsset?.category || "").toLowerCase().trim();
+        const managedCategory = (findUserCategoryManager(settings, userEmail) || "").toLowerCase().trim();
+        isCategoryManager = managedCategory !== "" && assetCategory !== "" && managedCategory === assetCategory;
       }
 
-      if (!isOwner && !isDeptManager) {
+      if (!isOwner && !isDeptManager && !isCategoryManager) {
         return NextResponse.json({ success: false, error: "權限不足：您無法修改其他人的資產" }, { status: 403 });
       }
     }
@@ -115,15 +127,21 @@ export async function DELETE(request, { params }) {
     if (!isAdmin) {
       const isOwner = existingAsset?.owner?.toLowerCase().trim() === userEmail;
       let isDeptManager = false;
+      let isCategoryManager = false;
+      
       if (!isOwner) {
         const settings = await getSystemSettings();
         const owner = existingAsset?.owner || "";
         const assetDept = (existingAsset?.department || findUserDept(settings, owner) || "").toLowerCase().trim();
         const managedDept = (findUserDeptManager(settings, userEmail) || "").toLowerCase().trim();
         isDeptManager = managedDept !== "" && assetDept !== "" && managedDept === assetDept;
+        
+        const assetCategory = (existingAsset?.category || "").toLowerCase().trim();
+        const managedCategory = (findUserCategoryManager(settings, userEmail) || "").toLowerCase().trim();
+        isCategoryManager = managedCategory !== "" && assetCategory !== "" && managedCategory === assetCategory;
       }
 
-      if (!isOwner && !isDeptManager) {
+      if (!isOwner && !isDeptManager && !isCategoryManager) {
         return NextResponse.json({ success: false, error: "權限不足：您無法刪除其他人的資產" }, { status: 403 });
       }
     }
