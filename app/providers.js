@@ -9,7 +9,7 @@ export function useApp() {
   return useContext(AppContext);
 }
 
-function SettingsSyncHandler({ setUserAliases, setUserDepartments, setDeptManagers, setCustomName }) {
+function SettingsSyncHandler({ setUserAliases, setUserEmpIds, setUserDepartments, setDeptManagers, setCategoryManagers, setCustomName }) {
   const { data: session } = useSession();
   const loadedRef = useRef(false);
 
@@ -33,6 +33,10 @@ function SettingsSyncHandler({ setUserAliases, setUserDepartments, setDeptManage
                   localStorage.setItem("customName", myAlias);
                 }
               }
+              if (data.userEmpIds) {
+                setUserEmpIds(data.userEmpIds);
+                localStorage.setItem("userEmpIds", JSON.stringify(data.userEmpIds));
+              }
               if (data.userDepartments) {
                 setUserDepartments(data.userDepartments);
                 localStorage.setItem("userDepartments", JSON.stringify(data.userDepartments));
@@ -40,6 +44,10 @@ function SettingsSyncHandler({ setUserAliases, setUserDepartments, setDeptManage
               if (data.deptManagers) {
                 setDeptManagers(data.deptManagers);
                 localStorage.setItem("deptManagers", JSON.stringify(data.deptManagers));
+              }
+              if (data.categoryManagers) {
+                setCategoryManagers(data.categoryManagers);
+                localStorage.setItem("categoryManagers", JSON.stringify(data.categoryManagers));
               }
               loadedRef.current = true;
             }
@@ -50,7 +58,7 @@ function SettingsSyncHandler({ setUserAliases, setUserDepartments, setDeptManage
       };
       fetchSettings();
     }
-  }, [session, setUserAliases, setUserDepartments, setDeptManagers, setCustomName]);
+  }, [session, setUserAliases, setUserDepartments, setDeptManagers, setCategoryManagers, setCustomName]);
 
   return null;
 }
@@ -61,8 +69,10 @@ export function Providers({ children }) {
   const [customName, setCustomName] = useState("");
   const [showOnlyIssues, setShowOnlyIssues] = useState(false);
   const [userAliases, setUserAliases] = useState({});
+  const [userEmpIds, setUserEmpIds] = useState({});
   const [userDepartments, setUserDepartments] = useState({});
   const [deptManagers, setDeptManagers] = useState({});
+  const [categoryManagers, setCategoryManagers] = useState({});
 
   const hasPendingChanges = useRef(false);
   const saveTimeout = useRef(null);
@@ -253,6 +263,7 @@ export function Providers({ children }) {
       const savedLang = localStorage.getItem("lang") || "zh";
       const savedName = localStorage.getItem("customName") || "";
       const savedAliases = localStorage.getItem("userAliases");
+      const savedEmpIds = localStorage.getItem("userEmpIds");
       const savedDepts = localStorage.getItem("userDepartments");
       const savedManagers = localStorage.getItem("deptManagers");
 
@@ -262,6 +273,7 @@ export function Providers({ children }) {
       document.documentElement.setAttribute("data-theme", savedTheme);
 
       if (savedAliases) { try { setUserAliases(JSON.parse(savedAliases)); } catch (e) {} }
+      if (savedEmpIds) { try { setUserEmpIds(JSON.parse(savedEmpIds)); } catch (e) {} }
       if (savedDepts) { try { setUserDepartments(JSON.parse(savedDepts)); } catch (e) {} }
       if (savedManagers) { try { setDeptManagers(JSON.parse(savedManagers)); } catch (e) {} }
 
@@ -292,7 +304,7 @@ export function Providers({ children }) {
         const res = await offlineSafeFetch("/api/user-settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userAliases, userDepartments, deptManagers })
+          body: JSON.stringify({ userAliases, userEmpIds, userDepartments, deptManagers, categoryManagers })
         });
         if (res.ok) {
           hasPendingChanges.current = false;
@@ -305,7 +317,7 @@ export function Providers({ children }) {
     return () => {
       if (saveTimeout.current) clearTimeout(saveTimeout.current);
     };
-  }, [userAliases, userDepartments, deptManagers, offlineSafeFetch]);
+  }, [userAliases, userEmpIds, userDepartments, deptManagers, categoryManagers, offlineSafeFetch]);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
@@ -347,6 +359,18 @@ export function Providers({ children }) {
     });
   };
 
+  const updateUserEmpId = (email, empId) => {
+    setUserEmpIds(prev => {
+      const next = { ...prev };
+      if (!empId || empId.trim() === "") delete next[email];
+      else next[email] = empId;
+      localStorage.setItem("userEmpIds", JSON.stringify(next));
+      hasPendingChanges.current = true;
+      return next;
+    });
+  };
+
+
   const updateUserDepartment = (email, dept) => {
     setUserDepartments(prev => {
       const next = { ...prev };
@@ -381,6 +405,17 @@ export function Providers({ children }) {
     });
   };
 
+  const updateUserCategoryManager = (email, category) => {
+    setCategoryManagers(prev => {
+      const next = { ...prev };
+      if (!category || category.trim() === "") delete next[email];
+      else next[email] = category;
+      localStorage.setItem("categoryManagers", JSON.stringify(next));
+      hasPendingChanges.current = true;
+      return next;
+    });
+  };
+
   const t = (zh, en) => (lang === "zh" ? zh : en);
 
   return (
@@ -389,14 +424,18 @@ export function Providers({ children }) {
         theme, toggleTheme, lang, toggleLang, t, 
         customName, updateCustomName, showOnlyIssues, setShowOnlyIssues,
         userAliases, updateUserAlias,
+        userEmpIds, updateUserEmpId,
         userDepartments, updateUserDepartment,
         deptManagers, updateUserDeptManager,
+        categoryManagers, updateUserCategoryManager,
         offlineSafeFetch, queueLength, isQueueSyncing, syncOfflineQueue // 🌟 新增暴露
       }}>
         <SettingsSyncHandler 
           setUserAliases={setUserAliases} 
+          setUserEmpIds={setUserEmpIds}
           setUserDepartments={setUserDepartments} 
           setDeptManagers={setDeptManagers} 
+          setCategoryManagers={setCategoryManagers}
           setCustomName={setCustomName} 
         />
         {children}

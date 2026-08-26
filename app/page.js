@@ -70,7 +70,7 @@ function AssetCard({ asset, t, onView, haptic }) {
 }
 
 export default function AssetsPage({ showSharedOnly = false }) {
-  const { t, showOnlyIssues, userAliases, userDepartments, deptManagers, offlineSafeFetch } = useApp();
+  const { t, showOnlyIssues, userAliases, userDepartments, deptManagers, categoryManagers, offlineSafeFetch } = useApp();
   const { data: session } = useSession();
   const userEmail = session?.user?.email?.toLowerCase().trim();
   const adminEmail = "ho3363@gmail.com";
@@ -82,6 +82,7 @@ export default function AssetsPage({ showSharedOnly = false }) {
   const adminViewAll = isAdmin
     ? (typeof window !== "undefined" ? localStorage.getItem("adminViewAll") !== "false" : true)
     : false;
+  
   const apiUrl = isAdmin ? `/api/assets?adminView=${adminViewAll}` : "/api/assets";
 
   const fetcher = (url) => fetch(url).then(res => res.json());
@@ -94,11 +95,12 @@ export default function AssetsPage({ showSharedOnly = false }) {
   const loading = isLoading;
 
   // ── States ──
+  const [activeTab, setActiveTab] = useState("personal");
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterDepartment, setFilterDepartment] = useState("all");
-  const [sortBy, setSortBy] = useState("assetCode");
+  const [sortBy, setSortBy] = useState("date_desc");
   const [showForm, setShowForm] = useState(false);
   const [isBorrowMode, setIsBorrowMode] = useState(false);
   const [editAsset, setEditAsset] = useState(null);
@@ -220,37 +222,60 @@ export default function AssetsPage({ showSharedOnly = false }) {
     }
   };
 
-  // ── Filtered Assets ──
-  const filtered = useMemo(() => {
-    const filteredBase = baseAssets.filter(a => {
-      const isOwner = userEmail && a.owner?.toLowerCase().trim() === userEmail;
-      const displayDept = a.department || (a.owner ? userDepartments[a.owner] : null);
-      const isDeptManager = userEmail && deptManagers?.[userEmail] && displayDept && 
-        deptManagers[userEmail].toLowerCase().trim() === displayDept.toLowerCase().trim();
+  // ── Filtered Assets & Stats Calculation ──
+  const { filtered, stats } = useMemo(() => {
+    let filteredBase = baseAssets;
+    
+    // 1. Initial scope filter (Tab context)
+    if (activeTab === "categoryManager" && userEmail && categoryManagers?.[userEmail]) {
+      const managedCategory = categoryManagers[userEmail];
+      filteredBase = baseAssets.filter(a => a.category?.toLowerCase() === managedCategory?.toLowerCase());
+    } else {
+      filteredBase = baseAssets.filter(a => {
+        const isOwner = userEmail && a.owner?.toLowerCase().trim() === userEmail;
+        const displayDept = a.department || (a.owner ? userDepartments[a.owner] : null);
+        const isDeptManager = userEmail && deptManagers?.[userEmail] && displayDept && 
+          deptManagers[userEmail].toLowerCase().trim() === displayDept.toLowerCase().trim();
 
-      let hasAccess = false;
-      if (isAdmin || isOwner || isDeptManager) {
-        hasAccess = true;
-      } else if (a.isShared) {
-        if (a.shareWithEveryone !== false) {
+        let hasAccess = false;
+        
+        if (isAdmin) {
+           if (activeTab === "adminAll" || showSharedOnly || isOwner) {
+             hasAccess = true;
+           }
+        } else if (isOwner || isDeptManager) {
           hasAccess = true;
-        } else {
-          const currentDept = userEmail ? userDepartments[userEmail] : "";
-          const currentUserAlias = userEmail ? userAliases[userEmail] : "";
-          const currentUserNamePrefix = userEmail ? userEmail.split('@')[0] : "";
-          const inDepts = a.sharedDepts && currentDept && a.sharedDepts.includes(currentDept);
-          const inUsers = a.sharedUsers && userEmail && (
-            a.sharedUsers.includes(userEmail) || 
-            (currentUserAlias && a.sharedUsers.includes(currentUserAlias)) ||
-            a.sharedUsers.includes(currentUserNamePrefix)
-          );
-          hasAccess = inDepts || inUsers;
+        } 
+        
+        if (!hasAccess && a.isShared) {
+          if (a.shareWithEveryone !== false) {
+            hasAccess = true;
+          } else {
+            const currentDept = userEmail ? userDepartments[userEmail] : "";
+            const currentUserAlias = userEmail ? userAliases[userEmail] : "";
+            const currentUserNamePrefix = userEmail ? userEmail.split('@')[0] : "";
+            const inDepts = a.sharedDepts && currentDept && a.sharedDepts.includes(currentDept);
+            const inUsers = a.sharedUsers && userEmail && (
+              a.sharedUsers.includes(userEmail) || 
+              (currentUserAlias && a.sharedUsers.includes(currentUserAlias)) ||
+              a.sharedUsers.includes(currentUserNamePrefix)
+            );
+            hasAccess = inDepts || inUsers;
+          }
         }
-      }
-      if (!hasAccess) return false;
+        
+        if (!hasAccess) return false;
+        if (!showSharedOnly && activeTab !== "adminAll" && !isOwner && !isDeptManager) return false;
+        
+        return true;
+      });
+    }
+
+    // 2. Apply search and other filters EXCEPT status
+    const preStatusFiltered = filteredBase.filter(a => {
       if (showSharedOnly && !a.isShared) return false;
-      // 主畫面只顯示個人資產，共用資產已在「共用裝置」頁面顯示，避免重複
-      if (!showSharedOnly && a.isShared) return false;
+      const isOwner = userEmail && a.owner?.toLowerCase().trim() === userEmail;
+      if (!showSharedOnly && activeTab === "personal" && a.isShared && !isOwner) return false;
       if (showOnlyIssues && !a.issueId && !a.doe) return false;
       
       const q = search.toLowerCase();
@@ -264,26 +289,13 @@ export default function AssetsPage({ showSharedOnly = false }) {
       const assetDept = a.department || (a.owner ? userDepartments[a.owner] : "未分類");
       const matchDept = filterDepartment === "all" || assetDept === filterDepartment;
       const matchCat = filterCategory === "all" || a.category === filterCategory;
-      const matchStatus = filterStatus === "all" || (filterStatus === "overdue" ? isAssetOverdue(a.status, a.returnDate) : a.status === filterStatus);
       
-      return matchSearch && matchDept && matchCat && matchStatus;
+      return matchSearch && matchDept && matchCat;
     });
 
-    return [...filteredBase].sort((a, b) => {
-      if (sortBy === "assetCode") return (a.assetCode || "").localeCompare(b.assetCode || "");
-      if (sortBy === "model") return (a.model || "").localeCompare(b.model || "");
-      if (sortBy === "date_desc") return new Date(b.acquisitionDate || 0) - new Date(a.acquisitionDate || 0);
-      if (sortBy === "date_asc") return new Date(a.acquisitionDate || 0) - new Date(b.acquisitionDate || 0);
-      return 0;
-    });
-  }, [baseAssets, search, filterStatus, filterCategory, filterDepartment, sortBy, isAdmin, userEmail, userDepartments, userAliases, showSharedOnly, showOnlyIssues]);
-
-  const stats = useMemo(() => {
+    // 3. Calculate stats based on preStatusFiltered
     const s = { total: 0, available: 0, borrowed: 0, overdue: 0 };
-    // 統計範圍跟當前頁面一致：
-    // 共用裝置頁 → 只統計共用資產；主畫面 → 只統計個人資產
-    const statBase = baseAssets.filter(a => showSharedOnly ? a.isShared : !a.isShared);
-    statBase.forEach(a => {
+    preStatusFiltered.forEach(a => {
       s.total++;
       if (a.status === "available") s.available++;
       if (a.status === "borrowed") {
@@ -291,10 +303,25 @@ export default function AssetsPage({ showSharedOnly = false }) {
         if (isAssetOverdue(a.status, a.returnDate)) s.overdue++;
       }
     });
-    return s;
-  }, [baseAssets, showSharedOnly]);
 
-  const hasActiveFilters = search || filterStatus !== "all" || filterCategory !== "all" || filterDepartment !== "all" || sortBy !== "assetCode";
+    // 4. Apply status filter
+    const finalFiltered = preStatusFiltered.filter(a => {
+      return filterStatus === "all" || (filterStatus === "overdue" ? isAssetOverdue(a.status, a.returnDate) : a.status === filterStatus);
+    });
+
+    // 5. Sort
+    const sorted = [...finalFiltered].sort((a, b) => {
+      if (sortBy === "assetCode") return (a.assetCode || "").localeCompare(b.assetCode || "");
+      if (sortBy === "model") return (a.model || "").localeCompare(b.model || "");
+      if (sortBy === "date_desc") return new Date(b.acquisitionDate || 0) - new Date(a.acquisitionDate || 0);
+      if (sortBy === "date_asc") return new Date(a.acquisitionDate || 0) - new Date(b.acquisitionDate || 0);
+      return 0;
+    });
+
+    return { filtered: sorted, stats: s };
+  }, [baseAssets, search, filterStatus, filterCategory, filterDepartment, sortBy, isAdmin, userEmail, userDepartments, userAliases, showSharedOnly, showOnlyIssues, activeTab, categoryManagers]);
+
+  const hasActiveFilters = search || filterStatus !== "all" || filterCategory !== "all" || filterDepartment !== "all" || sortBy !== "date_desc";
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-base)", paddingBottom: isMobile ? "calc(140px + env(safe-area-inset-bottom))" : "2rem" }}>
@@ -319,7 +346,56 @@ export default function AssetsPage({ showSharedOnly = false }) {
               <RefreshCw size={18} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
             </button>
           </div>
-        </div>
+        </div>        {!showSharedOnly && userEmail && (categoryManagers?.[userEmail] || (isAdmin && adminViewAll)) && (
+          <div className="animate-fade-in" style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", background: "var(--bg-elevated)", padding: "0.25rem", borderRadius: "12px", overflowX: "auto", whiteSpace: "nowrap" }}>
+            <button
+              onClick={() => setActiveTab("personal")}
+              style={{
+                flex: 1, padding: "0.75rem 1rem", border: "none", borderRadius: "8px",
+                background: activeTab === "personal" ? "var(--bg-surface)" : "transparent",
+                color: activeTab === "personal" ? "var(--text-primary)" : "var(--text-muted)",
+                fontWeight: activeTab === "personal" ? 700 : 500,
+                boxShadow: activeTab === "personal" ? "0 2px 8px rgba(0,0,0,0.05)" : "none",
+                cursor: "pointer", transition: "all 0.2s"
+              }}
+              className="btn-spring"
+            >
+              {t("個人資產", "Personal")}
+            </button>
+            {categoryManagers?.[userEmail] && (
+              <button
+                onClick={() => setActiveTab("categoryManager")}
+                style={{
+                  flex: 1, padding: "0.75rem 1rem", border: "none", borderRadius: "8px",
+                  background: activeTab === "categoryManager" ? "var(--bg-surface)" : "transparent",
+                  color: activeTab === "categoryManager" ? "var(--text-primary)" : "var(--text-muted)",
+                  fontWeight: activeTab === "categoryManager" ? 700 : 500,
+                  boxShadow: activeTab === "categoryManager" ? "0 2px 8px rgba(0,0,0,0.05)" : "none",
+                  cursor: "pointer", transition: "all 0.2s"
+                }}
+                className="btn-spring"
+              >
+                {categoryManagers[userEmail]}
+              </button>
+            )}
+            {isAdmin && adminViewAll && (
+              <button
+                onClick={() => setActiveTab("adminAll")}
+                style={{
+                  flex: 1, padding: "0.75rem 1rem", border: "none", borderRadius: "8px",
+                  background: activeTab === "adminAll" ? "var(--bg-surface)" : "transparent",
+                  color: activeTab === "adminAll" ? "var(--text-primary)" : "var(--text-muted)",
+                  fontWeight: activeTab === "adminAll" ? 700 : 500,
+                  boxShadow: activeTab === "adminAll" ? "0 2px 8px rgba(0,0,0,0.05)" : "none",
+                  cursor: "pointer", transition: "all 0.2s"
+                }}
+                className="btn-spring"
+              >
+                {t("全公司資產", "Company Assets")}
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="stagger" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.75rem", marginBottom: "1.5rem" }}>
           <div onClick={() => setFilterStatus("all")} style={{ cursor: "pointer" }} className="btn-spring">
@@ -361,7 +437,7 @@ export default function AssetsPage({ showSharedOnly = false }) {
               <CustomSelect value={sortBy} onChange={setSortBy} options={[{ value: "assetCode", label: t("依編號排序", "Sort by Code") }, { value: "model", label: t("依型號排序 (A-Z)", "Sort by Model") }, { value: "date_desc", label: t("取得日：新 ➔ 舊", "Date: Newest") }, { value: "date_asc", label: t("取得日：舊 ➔ 新", "Date: Oldest") }]} />
               
               {hasActiveFilters && (
-                <button onClick={() => { setSearch(""); setFilterStatus("all"); setFilterCategory("all"); setFilterDepartment("all"); setSortBy("assetCode"); }} style={{ padding: "0.55rem 0.875rem", background: "var(--danger-soft)", border: "1px solid var(--danger)", borderRadius: "8px", color: "var(--danger)", fontSize: "0.8rem", fontFamily: "var(--font-display)", cursor: "pointer", outline: "none", transition: "all 0.2s" }}>{t("清除", "Clear")}</button>
+                <button onClick={() => { setSearch(""); setFilterStatus("all"); setFilterCategory("all"); setFilterDepartment("all"); setSortBy("date_desc"); }} style={{ padding: "0.55rem 0.875rem", background: "var(--danger-soft)", border: "1px solid var(--danger)", borderRadius: "8px", color: "var(--danger)", fontSize: "0.8rem", fontFamily: "var(--font-display)", cursor: "pointer", outline: "none", transition: "all 0.2s" }}>{t("清除", "Clear")}</button>
               )}
             </div>
           </div>
@@ -510,7 +586,8 @@ export default function AssetsPage({ showSharedOnly = false }) {
                             const isOwner = userEmail && asset.owner?.toLowerCase().trim() === userEmail;
                             const isDeptManager = userEmail && deptManagers?.[userEmail] && displayDept && 
                               deptManagers[userEmail].toLowerCase().trim() === displayDept.toLowerCase().trim();
-                            const canEdit = isAdmin || isOwner || isDeptManager;
+                            const isCategoryManager = userEmail && categoryManagers?.[userEmail] && asset.category === categoryManagers[userEmail];
+                            const canEdit = isAdmin || isOwner || isDeptManager || isCategoryManager;
                             
                             return canEdit ? (
                               <button onClick={(e) => { e.stopPropagation(); haptic(40); setEditAsset(asset); setShowForm(true); }} title={t("編輯","Edit")} 
@@ -538,7 +615,7 @@ export default function AssetsPage({ showSharedOnly = false }) {
         )}
       </main>
 
-      <button onClick={() => { haptic(50); setEditAsset(null); setShowForm(true); }} style={{ 
+      <button onClick={() => { haptic(50); setEditAsset(activeTab === "categoryManager" ? { category: categoryManagers[userEmail], status: "available" } : null); setShowForm(true); }} style={{ 
         position: "fixed", 
         bottom: isMobile ? "calc(72px + env(safe-area-inset-bottom))" : "32px", 
         right: isMobile ? "16px" : "32px", 

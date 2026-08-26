@@ -98,14 +98,97 @@ function DepartmentSelect({ value, onChange, options, t }) {
   );
 }
 
+function CategorySelect({ value, onChange, categoryIcons, t }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) setIsOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  let displayValue = t("無 (None)", "None");
+  if (value && categoryIcons[value]) {
+    displayValue = t(categoryIcons[value].label[0], categoryIcons[value].label[1]);
+  }
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button 
+        type="button" 
+        onClick={() => setIsOpen(!isOpen)} 
+        style={{ 
+          background: "var(--bg-base)", border: "1px solid var(--border)", 
+          color: "var(--text-primary)", padding: "2px 6px", borderRadius: "6px",
+          fontSize: "0.85rem", cursor: "pointer", 
+          display: "flex", alignItems: "center", gap: "0.5rem", 
+          outline: "none"
+        }}
+      >
+        <span style={{ whiteSpace: "nowrap" }}>{displayValue}</span>
+        <ChevronDown size={12} style={{ color: "var(--text-muted)", transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+      </button>
+
+      {isOpen && (
+        <div className="animate-fade-in" style={{ 
+          position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 100, 
+          background: "var(--bg-surface)", border: "1px solid var(--border)", 
+          borderRadius: "8px", boxShadow: "var(--shadow-lg)", padding: "4px", 
+          display: "flex", flexDirection: "column", gap: "2px",
+          maxHeight: "200px", overflowY: "auto", minWidth: "120px"
+        }}>
+          <div 
+            onClick={() => { onChange(""); setIsOpen(false); }}
+            style={{ 
+              padding: "0.4rem 0.6rem", borderRadius: "6px", fontSize: "0.85rem", cursor: "pointer", 
+              color: !value ? "var(--text-primary)" : "var(--text-secondary)", 
+              background: !value ? "var(--bg-elevated)" : "transparent",
+              fontWeight: !value ? 600 : 400, transition: "all 0.15s", whiteSpace: "nowrap"
+            }}
+            onMouseEnter={e => { if(!value) { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-primary)"; } }}
+            onMouseLeave={e => { if(!value) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-secondary)"; } }}
+          >
+            {t("無 (None)", "None")}
+          </div>
+          
+          {Object.keys(categoryIcons).map(cat => {
+            const isActive = value === cat;
+            return (
+              <div 
+                key={cat}
+                onClick={() => { onChange(cat); setIsOpen(false); }}
+                style={{ 
+                  padding: "0.4rem 0.6rem", borderRadius: "6px", fontSize: "0.85rem", cursor: "pointer", 
+                  color: isActive ? "var(--text-primary)" : "var(--text-secondary)", 
+                  background: isActive ? "var(--bg-elevated)" : "transparent",
+                  fontWeight: isActive ? 600 : 400, transition: "all 0.15s", whiteSpace: "nowrap"
+                }}
+                onMouseEnter={e => { if(!isActive) { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-primary)"; } }}
+                onMouseLeave={e => { if(!isActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-secondary)"; } }}
+              >
+                {t(categoryIcons[cat].label[0], categoryIcons[cat].label[1])}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { data: session } = useSession();
   const { 
     theme, toggleTheme, lang, toggleLang, t, 
     customName, updateCustomName, 
     userAliases, updateUserAlias,
+    userEmpIds, updateUserEmpId,
     userDepartments, updateUserDepartment,
-    deptManagers, updateUserDeptManager
+    deptManagers, updateUserDeptManager,
+    categoryManagers, updateUserCategoryManager
   } = useApp();
   
   const router = useRouter();
@@ -199,8 +282,14 @@ export default function SettingsPage() {
           </div>
           {session && (
             <div style={{ padding: "1rem 1.25rem", borderBottom: "1px solid var(--border)" }}>
-              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", marginBottom: "0.5rem", textTransform: "uppercase" }}>{t("自訂您的顯示名稱", "Your Display Name")}</label>
-              <input type="text" value={customName} onChange={(e) => updateCustomName(e.target.value, session?.user?.email)} placeholder={session.user.name} style={{ width: "100%", padding: "0.7rem 0.8rem", borderRadius: "10px", background: "var(--bg-base)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none", transition: "border-color 0.2s" }} onFocus={e => e.target.style.borderColor = "var(--border-focus)"} onBlur={e => e.target.style.borderColor = "var(--border)"} />
+              <div style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", marginBottom: "0.5rem", textTransform: "uppercase" }}>{t("自訂您的顯示名稱", "Your Display Name")}</label>
+                <input type="text" value={customName} onChange={(e) => updateCustomName(e.target.value, session?.user?.email)} placeholder={session.user.name} style={{ width: "100%", padding: "0.7rem 0.8rem", borderRadius: "10px", background: "var(--bg-base)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none", transition: "border-color 0.2s" }} onFocus={e => e.target.style.borderColor = "var(--border-focus)"} onBlur={e => e.target.style.borderColor = "var(--border)"} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", marginBottom: "0.5rem", textTransform: "uppercase" }}>{t("您的員工編號", "Your Employee ID")}</label>
+                <input type="text" value={userEmpIds[session.user.email] || ""} onChange={(e) => updateUserEmpId(session.user.email, e.target.value)} placeholder={t("設定員工編號 (如: EMP001)", "Set Employee ID...")} style={{ width: "100%", padding: "0.7rem 0.8rem", borderRadius: "10px", background: "var(--bg-base)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none", transition: "border-color 0.2s" }} onFocus={e => e.target.style.borderColor = "var(--border-focus)"} onBlur={e => e.target.style.borderColor = "var(--border)"} />
+              </div>
             </div>
           )}
           <div style={{ padding: "0.75rem" }}>
@@ -281,6 +370,18 @@ export default function SettingsPage() {
                                 style={{ flex: 1, background: "transparent", border: "none", color: "var(--accent)", fontSize: "0.85rem", fontWeight: 600, outline: "none" }}
                               />
                             </div>
+                            
+                            {/* 員工編號設定 */}
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                              <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "14px", height: "14px", fontSize: "0.75rem", fontWeight: 700, color: "var(--text-secondary)" }}>ID</span>
+                              <input
+                                type="text"
+                                placeholder={t("設定員工編號 (如: EMP001)", "Set Employee ID...")}
+                                value={userEmpIds[user.email] || ""}
+                                onChange={(e) => updateUserEmpId(user.email, e.target.value)}
+                                style={{ flex: 1, background: "transparent", border: "none", color: "var(--text-secondary)", fontSize: "0.85rem", fontWeight: 600, outline: "none" }}
+                              />
+                            </div>
 
                             {/* 動態下拉選單 */}
                             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -326,6 +427,22 @@ export default function SettingsPage() {
                                   }} />
                                 </span>
                               </label>
+                            </div>
+
+                            {/* 項目管理人設定 */}
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", marginTop: "0.4rem", padding: "0.4rem 0.5rem", background: "var(--bg-elevated)", borderRadius: "8px", border: "1px solid var(--border)" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                <Briefcase size={14} color={categoryManagers[user.email] ? "var(--accent)" : "var(--text-muted)"} />
+                                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)" }}>
+                                  {t("項目管理人", "Category Manager")}
+                                </span>
+                              </div>
+                              <CategorySelect 
+                                value={categoryManagers[user.email] || ""}
+                                onChange={(val) => updateUserCategoryManager(user.email, val)}
+                                categoryIcons={categoryIcons}
+                                t={t}
+                              />
                             </div>
 
                           </div>

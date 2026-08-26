@@ -26,11 +26,16 @@ export async function GET(request) {
     const shouldViewAll = isOwnerAdmin && adminViewParam !== "false";
 
     let managedDepartment = undefined;
+    let managedCategory = undefined;
     if (!shouldViewAll) {
       const settings = await getSystemSettings();
       const userDeptManager = settings.deptManagers?.[userEmail];
       if (userDeptManager && userDeptManager.trim() !== "") {
         managedDepartment = userDeptManager.trim();
+      }
+      const userCategoryManager = settings.categoryManagers?.[userEmail];
+      if (userCategoryManager && userCategoryManager.trim() !== "") {
+        managedCategory = userCategoryManager.trim();
       }
     }
 
@@ -39,6 +44,7 @@ export async function GET(request) {
       status: searchParams.get("status") || undefined,
       owner: shouldViewAll ? undefined : userEmail,
       managedDepartment,
+      managedCategory,
     };
 
     const assets = await getAllAssets(filters);

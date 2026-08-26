@@ -48,11 +48,11 @@ export async function PATCH(request, { params }) {
 
     const validated = result.data;
 
-    // ── 確認資產存在 ──
     let existingAsset;
     try {
       existingAsset = await getAssetById(id);
-    } catch {
+    } catch (err) {
+      console.error(`[PATCH /api/assets/${id}] getAssetById failed:`, err);
       return NextResponse.json({ success: false, error: "找不到指定資產" }, { status: 404 });
     }
 
@@ -99,11 +99,11 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ success: false, error: "缺少資產 ID" }, { status: 400 });
     }
 
-    // ── 確認資產存在 ──
     let existingAsset;
     try {
       existingAsset = await getAssetById(id);
-    } catch {
+    } catch (err) {
+      console.error(`[DELETE /api/assets/${id}] getAssetById failed:`, err);
       return NextResponse.json({ success: false, error: "找不到指定資產" }, { status: 404 });
     }
 

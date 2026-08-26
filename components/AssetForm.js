@@ -40,7 +40,7 @@ const specSchema = {
 };
 
 export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly = false }) {
-  const { t, offlineSafeFetch, userDepartments, deptManagers } = useApp();
+  const { t, offlineSafeFetch, userDepartments, deptManagers, categoryManagers, userAliases, userEmpIds } = useApp();
   const { data: session } = useSession();
   const userEmail = session?.user?.email?.toLowerCase().trim();
   const adminEmail = "ho3363@gmail.com";
@@ -50,7 +50,10 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
   const displayDept = editData?.department || (editData?.owner ? userDepartments[editData.owner] : null);
   const isDeptManager = userEmail && deptManagers?.[userEmail] && displayDept && 
     deptManagers[userEmail].toLowerCase().trim() === displayDept.toLowerCase().trim();
-  const canEdit = !editData || isAdmin || isOwner || isDeptManager;
+  const isCategoryManager = userEmail && categoryManagers?.[userEmail] && editData?.category?.toLowerCase() === categoryManagers[userEmail].toLowerCase();
+  
+  const canEdit = !editData || isAdmin || isOwner || isDeptManager || isCategoryManager;
+  const canAssignOwner = isAdmin || isDeptManager || isCategoryManager;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -61,6 +64,7 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
   const [category, setCategory] = useState("laptop");
   const [status, setStatus] = useState("available");
   const [borrower, setBorrower] = useState("");
+  const [owner, setOwner] = useState(editData ? editData.owner : "");
   const [returnDate, setReturnDate] = useState("");
   const [issueId, setIssueId] = useState("");
   const [doe, setDoe] = useState("");
@@ -168,6 +172,14 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
       }
     });
 
+    let finalOwner = owner ? owner.trim() : "";
+    if (finalOwner) {
+      const matchedEmp = Object.entries(userEmpIds || {}).find(([k, v]) => v && v.toLowerCase() === finalOwner.toLowerCase());
+      if (matchedEmp) {
+        finalOwner = matchedEmp[0];
+      }
+    }
+
     const payload = {
       assetCode,
       model,
@@ -179,6 +191,7 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
       returnDate: (isBorrowOnly || status === "borrowed") ? returnDate : null,
       issueId,
       doe,
+      owner: finalOwner,
       note: JSON.stringify(specsObj)
     };
 
@@ -310,6 +323,27 @@ export default function AssetForm({ editData, onClose, onSuccess, isBorrowOnly =
                     </select>
                   </div>
                 </div>
+                
+                {canAssignOwner && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", minWidth: 0, marginTop: "0.5rem" }}>
+                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-secondary)" }}>{t("資產保管人 (Email / Emp ID)", "Owner Email")}</label>
+                    <input list="employee-options" value={owner || ""} onChange={e => setOwner(e.target.value)} disabled={!canEdit} placeholder="e.g. user@example.com 或 員工編號" style={{ width: "100%", boxSizing: "border-box", minWidth: 0, padding: "0.7rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: "0.9rem", outline: "none", opacity: canEdit ? 1 : 0.7 }} />
+                    <datalist id="employee-options">
+                      {Object.keys(userAliases || {}).map(email => (
+                        <option key={email} value={email}>
+                          {userAliases[email] || email} {userEmpIds?.[email] ? `(${userEmpIds[email]})` : ""}
+                        </option>
+                      ))}
+                      {Object.keys(userEmpIds || {}).map(email => (
+                        (!userAliases || !userAliases[email]) && (
+                          <option key={email} value={email}>
+                            {email} ({userEmpIds[email]})
+                          </option>
+                        )
+                      ))}
+                    </datalist>
+                  </div>
+                )}
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
                   <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-secondary)" }}>{t("類別", "Category")}</label>

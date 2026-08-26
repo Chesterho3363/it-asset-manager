@@ -38,7 +38,7 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: "請求格式錯誤：無效的 JSON" }, { status: 400 });
     }
 
-    const { userAliases, userDepartments, deptManagers } = body;
+    const { userAliases, userEmpIds, userDepartments, deptManagers, categoryManagers } = body;
     if (!userAliases || !userDepartments) {
       return NextResponse.json({ success: false, error: "欄位錯誤" }, { status: 400 });
     }
@@ -47,8 +47,10 @@ export async function POST(request) {
       // 管理員：可寫入/覆蓋所有設定
       const updated = await saveSystemSettings({ 
         userAliases, 
+        userEmpIds: userEmpIds || {},
         userDepartments, 
-        deptManagers: deptManagers || {} 
+        deptManagers: deptManagers || {},
+        categoryManagers: categoryManagers || {}
       });
       return NextResponse.json({ success: true, data: updated });
     } else {
@@ -56,6 +58,7 @@ export async function POST(request) {
       const current = await getSystemSettings();
       
       const newUserAliases = { ...current.userAliases };
+      const newUserEmpIds = { ...current.userEmpIds };
       const newUserDepartments = { ...current.userDepartments };
       
       // 僅覆蓋當前登入使用者的別名
@@ -68,11 +71,22 @@ export async function POST(request) {
         }
       }
       
+      const myNewEmpId = userEmpIds ? userEmpIds[userEmail] : undefined;
+      if (myNewEmpId !== undefined) {
+        if (!myNewEmpId || myNewEmpId.trim() === "") {
+          delete newUserEmpIds[userEmail];
+        } else {
+          newUserEmpIds[userEmail] = myNewEmpId;
+        }
+      }
+      
       // 儲存合併後的設定，其餘部門與其他成員設定維持 Notion 上的版本不變
       const updated = await saveSystemSettings({
         userAliases: newUserAliases,
+        userEmpIds: newUserEmpIds,
         userDepartments: newUserDepartments,
-        deptManagers: current.deptManagers || {}
+        deptManagers: current.deptManagers || {},
+        categoryManagers: current.categoryManagers || {}
       });
       
       return NextResponse.json({ success: true, data: updated });
