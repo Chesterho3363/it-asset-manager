@@ -293,7 +293,7 @@ export default function SettingsPage() {
             </div>
           )}
           <div style={{ padding: "0.75rem" }}>
-            <button onClick={() => session ? signOut() : signIn("google")} style={{ width: "100%", padding: "0.75rem", borderRadius: "10px", background: session ? "var(--danger-soft)" : "var(--text-primary)", color: session ? "var(--danger)" : "var(--bg-base)", border: "none", cursor: "pointer", fontWeight: 600, outline: "none", WebkitTapHighlightColor: "transparent" }}>{session ? t("登出帳號", "Sign Out") : t("登入 Google", "Sign in with Google")}</button>
+            <button onClick={() => session ? signOut() : signIn()} style={{ width: "100%", padding: "0.75rem", borderRadius: "10px", background: session ? "var(--danger-soft)" : "var(--text-primary)", color: session ? "var(--danger)" : "var(--bg-base)", border: "none", cursor: "pointer", fontWeight: 600, outline: "none", WebkitTapHighlightColor: "transparent" }}>{session ? t("登出帳號", "Sign Out") : t("登入系統", "Sign In")}</button>
           </div>
         </section>
 
