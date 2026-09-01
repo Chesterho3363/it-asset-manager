@@ -16,6 +16,7 @@ function parseSpecs(noteStr) {
 const specSchema = {
   laptop: [
     { key: "SKU", label: "SKU", placeholder: "e.g. SKU12" },
+    { key: "SN", label: "S/N", placeholder: "e.g. SN123456" },
     { key: "CPU", label: "CPU", placeholder: "e.g. Ultra 7" },
     { key: "RAM", label: "RAM", placeholder: "e.g. 32GB" },
     { key: "STORAGE", label: "Storage", placeholder: "e.g. 1TB SSD" },

@@ -26,10 +26,8 @@ function ScanContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const readerRef = useRef(null);
-  const scanningRef = useRef(false);
+  const scannerRef = useRef(null);
+  const scanRegionId = "qr-reader-region";
 
   const [mode, setMode] = useState("scan");
   const [scanning, setScanning] = useState(false);
@@ -145,100 +143,76 @@ function ScanContent() {
   const startCamera = async (currentType = scanType) => {
     setError("");
     setScanning(true);
-    scanningRef.current = true;
-
+    
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: "environment", 
-          width: { ideal: 1920 }, 
-          height: { ideal: 1080 },
-          advanced: [{ focusMode: "continuous" }] 
-        }
-      });
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.setAttribute("playsinline", true);
-        videoRef.current.play().catch(e => console.warn("Video play interrupted:", e));
+      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
+      
+      let formatsToSupport = [];
+      if (currentType === 'qr') {
+        formatsToSupport = [Html5QrcodeSupportedFormats.QR_CODE];
+      } else {
+        formatsToSupport = [
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A
+        ];
       }
 
-      const scanLoop = async () => {
-        if (!scanningRef.current || !videoRef.current || videoRef.current.readyState !== 4) {
-          if (scanningRef.current) requestAnimationFrame(scanLoop);
-          return;
-        }
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5Qrcode(scanRegionId, { formatsToSupport, experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
+      }
 
-        try {
-          if ('BarcodeDetector' in window) {
-            if (!readerRef.current) {
-              const formats = currentType === 'qr' ? ['qr_code'] : ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a'];
-              readerRef.current = new window.BarcodeDetector({ formats });
-            }
-            const barcodes = await readerRef.current.detect(videoRef.current);
-            if (barcodes && barcodes.length > 0) {
-              handleScanSuccess(barcodes[0].rawValue);
-              return;
-            }
-          } 
-          else {
-            if (currentType === 'qr') {
-              const jsQR = (await import("jsqr")).default;
-              const canvas = document.createElement("canvas");
-              canvas.width = videoRef.current.videoWidth;
-              canvas.height = videoRef.current.videoHeight;
-              const ctx = canvas.getContext("2d", { willReadFrequently: true });
-              ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-              const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const code = jsQR(imgData.data, imgData.width, imgData.height);
-              if (code) {
-                handleScanSuccess(code.data);
-                return;
-              }
-            } else {
-              const { BrowserMultiFormatReader, DecodeHintType } = await import('@zxing/library');
-              if (!readerRef.current) {
-                const hints = new Map();
-                hints.set(DecodeHintType.TRY_HARDER, true);
-                readerRef.current = new BrowserMultiFormatReader(hints);
-              }
-              const result = await readerRef.current.decodeOnceFromVideoElement(videoRef.current);
-              if (result) {
-                handleScanSuccess(result.getText());
-                return;
-              }
-            }
-          }
-        } catch(e) {}
-
-        if (scanningRef.current) {
-          setTimeout(scanLoop, currentType === 'qr' ? 100 : 250);
-        }
+      const config = { 
+        fps: 15,
+        qrbox: currentType === 'qr' ? { width: 250, height: 250 } : { width: 300, height: 150 },
+        aspectRatio: 1.777778
       };
 
-      videoRef.current.onloadeddata = () => {
-        scanLoop();
-      };
+      await scannerRef.current.start(
+        { facingMode: "environment" }, 
+        config, 
+        (decodedText) => handleScanSuccess(decodedText),
+        (errorMessage) => { /* ignore normal scan errors */ }
+      );
+
+      try {
+        const stream = scannerRef.current.getRunningTrack();
+        if (stream && stream.applyConstraints) {
+          await stream.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+        }
+      } catch(e) {}
 
     } catch (err) {
+      console.error(err);
       setError(t("無法開啟相機，請確認已授予權限", "Cannot access camera. Please allow permission."));
       setScanning(false);
-      scanningRef.current = false;
     }
   };
 
-  const stopCamera = useCallback(() => {
-    scanningRef.current = false;
+  const stopCamera = useCallback(async () => {
     setScanning(false);
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+      } catch (e) {}
+      try {
+        scannerRef.current.clear();
+      } catch (e) {}
+      scannerRef.current = null;
     }
-    readerRef.current = null;
   }, []);
 
-  useEffect(() => () => stopCamera(), [stopCamera]);
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(e => {}).finally(() => {
+           try { scannerRef.current.clear(); } catch(e){} 
+        });
+      }
+    };
+  }, []);
 
   const handleTypeToggle = (type) => {
     haptic();
@@ -340,7 +314,16 @@ function ScanContent() {
             }}>
               {scanning ? (
                 <>
-                  <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <div id="qr-reader-region" style={{ width: "100%", height: "100%" }} />
+                  <style>{`
+                    #qr-reader-region video {
+                      object-fit: cover !important;
+                      width: 100% !important;
+                      height: 100% !important;
+                    }
+                    /* Hide html5-qrcode's default UI elements we don't want */
+                    #qr-reader-region__dashboard_section_csr span { display: none !important; }
+                  `}</style>
                   <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
                     <div style={{
                       width: scanType === 'qr' ? "65%" : "85%", 

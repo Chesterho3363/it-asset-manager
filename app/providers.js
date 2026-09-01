@@ -2,6 +2,9 @@
 import { useState, createContext, useContext, useEffect, useRef, useCallback } from "react";
 import { SessionProvider, useSession } from "next-auth/react";
 import { mutate } from "swr"; // 🌟 引入全域 mutate
+import * as OpenCC from "opencc-js";
+
+const converter = OpenCC.Converter({ from: "tw", to: "cn" });
 
 export const AppContext = createContext();
 
@@ -271,6 +274,7 @@ export function Providers({ children }) {
       setLang(savedLang);
       setCustomName(savedName);
       document.documentElement.setAttribute("data-theme", savedTheme);
+      document.documentElement.lang = savedLang === 'zh-CN' ? 'zh-CN' : (savedLang === 'zh' ? 'zh-TW' : 'en');
 
       if (savedAliases) { try { setUserAliases(JSON.parse(savedAliases)); } catch (e) {} }
       if (savedEmpIds) { try { setUserEmpIds(JSON.parse(savedEmpIds)); } catch (e) {} }
@@ -326,11 +330,6 @@ export function Providers({ children }) {
     document.documentElement.setAttribute("data-theme", next);
   };
 
-  const toggleLang = () => {
-    const nextLang = lang === "zh" ? "en" : "zh";
-    setLang(nextLang);
-    localStorage.setItem("lang", nextLang);
-  };
 
   const updateCustomName = (name, email) => {
     setCustomName(name);
@@ -416,12 +415,22 @@ export function Providers({ children }) {
     });
   };
 
-  const t = (zh, en) => (lang === "zh" ? zh : en);
+  const changeLang = (newLang) => {
+    setLang(newLang);
+    localStorage.setItem("lang", newLang);
+    document.documentElement.lang = newLang === 'zh-CN' ? 'zh-CN' : (newLang === 'zh' ? 'zh-TW' : 'en');
+  };
+
+  const t = (zh, en) => {
+    if (lang === "en") return en;
+    if (lang === "zh-CN") return converter(zh);
+    return zh;
+  };
 
   return (
     <SessionProvider>
       <AppContext.Provider value={{ 
-        theme, toggleTheme, lang, toggleLang, t, 
+        theme, toggleTheme, lang, setLang: changeLang, t, 
         customName, updateCustomName, showOnlyIssues, setShowOnlyIssues,
         userAliases, updateUserAlias,
         userEmpIds, updateUserEmpId,

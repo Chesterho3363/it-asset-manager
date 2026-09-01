@@ -179,10 +179,75 @@ function CategorySelect({ value, onChange, categoryIcons, t }) {
   );
 }
 
+function LanguageSelector({ lang, setLang }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef(null);
+  
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const options = [
+    { value: "zh", label: "繁體中文" },
+    { value: "zh-CN", label: "簡體中文" },
+    { value: "en", label: "English" }
+  ];
+
+  const currentLabel = options.find(o => o.value === lang)?.label || "Language";
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          display: "flex", alignItems: "center", gap: "0.5rem",
+          padding: "0.4rem 0.8rem", borderRadius: "8px", 
+          background: "var(--bg-elevated)", border: "1px solid var(--border)", 
+          color: "var(--text-primary)", fontSize: "0.8rem", 
+          cursor: "pointer", outline: "none", WebkitTapHighlightColor: "transparent"
+        }}
+      >
+        {currentLabel}
+        <ChevronDown size={14} style={{ color: "var(--text-secondary)" }} />
+      </button>
+
+      {isOpen && (
+        <div style={{
+          position: "absolute", top: "100%", right: 0, marginTop: "0.4rem",
+          background: "var(--bg-elevated)", border: "1px solid var(--border)",
+          borderRadius: "8px", boxShadow: "var(--shadow-md)",
+          overflow: "hidden", zIndex: 50, minWidth: "120px"
+        }}>
+          {options.map(opt => (
+            <div 
+              key={opt.value}
+              onClick={() => { setLang(opt.value); setIsOpen(false); }}
+              style={{
+                padding: "0.6rem 1rem", fontSize: "0.85rem", cursor: "pointer",
+                background: lang === opt.value ? "var(--bg-hover)" : "transparent",
+                color: lang === opt.value ? "var(--accent)" : "var(--text-primary)",
+                transition: "background 0.2s"
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "var(--bg-hover)"}
+              onMouseLeave={e => e.currentTarget.style.background = lang === opt.value ? "var(--bg-hover)" : "transparent"}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { data: session } = useSession();
   const { 
-    theme, toggleTheme, lang, toggleLang, t, 
+    theme, toggleTheme, lang, setLang, t, 
     customName, updateCustomName, 
     userAliases, updateUserAlias,
     userEmpIds, updateUserEmpId,
@@ -329,7 +394,7 @@ export default function SettingsPage() {
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 0.75rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}><Languages size={20} /><span style={{ fontSize: "0.95rem", fontWeight: 600 }}>{t("介面語言", "Language")}</span></div>
-            <button onClick={toggleLang} style={{ padding: "0.4rem 0.8rem", borderRadius: "8px", background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", fontSize: "0.8rem", cursor: "pointer", outline: "none", WebkitTapHighlightColor: "transparent" }}>{lang === "zh" ? "繁體中文" : "English"}</button>
+            <LanguageSelector lang={lang} setLang={setLang} />
           </div>
         </section>
 
