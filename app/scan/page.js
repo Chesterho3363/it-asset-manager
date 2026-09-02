@@ -144,29 +144,23 @@ function ScanContent() {
     setError("");
     setScanning(true);
     
+    // 等待 React 把 #qr-reader-region 渲染到 DOM 上
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
     try {
-      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
+      const { Html5Qrcode } = await import('html5-qrcode');
       
-      let formatsToSupport = [];
-      if (currentType === 'qr') {
-        formatsToSupport = [Html5QrcodeSupportedFormats.QR_CODE];
-      } else {
-        formatsToSupport = [
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.CODE_39,
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A
-        ];
-      }
-
+      // 不再限制格式 (formatsToSupport)，直接採用套件預設支援所有 QR / 1D 條碼
       if (!scannerRef.current) {
-        scannerRef.current = new Html5Qrcode(scanRegionId, { formatsToSupport, experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
+        scannerRef.current = new Html5Qrcode(scanRegionId, { 
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true } 
+        });
       }
 
+      // 將條碼掃描的框框改寬一點，幫助傳統條碼更容易對焦
       const config = { 
         fps: 15,
-        qrbox: currentType === 'qr' ? { width: 250, height: 250 } : { width: 300, height: 150 },
+        qrbox: currentType === 'qr' ? { width: 250, height: 250 } : { width: 320, height: 120 },
         aspectRatio: 1.777778
       };
 
