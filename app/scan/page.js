@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ScanLine, CheckCircle2, AlertCircle, Loader2, ArrowLeft, QrCode, Barcode } from "lucide-react";
+import { ScanLine, CheckCircle2, AlertCircle, Loader2, ArrowLeft, QrCode, Barcode, Camera } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { mutate, useSWRConfig } from "swr";
 import Navbar from "../../components/Navbar";
@@ -37,6 +37,8 @@ function ScanContent() {
   const [showForm, setShowForm] = useState(false);
   const [isBorrowMode, setIsBorrowMode] = useState(false);
   const [returning, setReturning] = useState(false);
+  const [cameras, setCameras] = useState([]);
+  const [activeCameraId, setActiveCameraId] = useState(null);
 
   const userEmail = session?.user?.email?.toLowerCase().trim();
   const adminEmail = "ho3363@gmail.com";
@@ -140,7 +142,7 @@ function ScanContent() {
     fetchByCode(text);
   };
 
-  const startCamera = async (currentType = scanType) => {
+  const startCamera = async (currentType = scanType, specificCameraId = activeCameraId) => {
     setError("");
     setScanning(true);
     
@@ -149,6 +151,26 @@ function ScanContent() {
     
     try {
       const { Html5Qrcode } = await import('html5-qrcode');
+      
+      let camIdToUse = specificCameraId;
+      if (!camIdToUse) {
+        try {
+          const devices = await Html5Qrcode.getCameras();
+          if (devices && devices.length > 0) {
+            setCameras(devices);
+            const backCams = devices.filter(c => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('environment') || c.label.toLowerCase().includes('後置'));
+            if (backCams.length > 0) {
+              const mainBack = backCams.find(c => !c.label.toLowerCase().includes('ultra') && !c.label.toLowerCase().includes('0.5x') && !c.label.toLowerCase().includes('廣角')) || backCams[0];
+              camIdToUse = mainBack.id;
+            } else {
+              camIdToUse = devices[devices.length - 1].id;
+            }
+            setActiveCameraId(camIdToUse);
+          }
+        } catch(e) {
+          console.warn('Could not list cameras', e);
+        }
+      }
       
       // 不再限制格式 (formatsToSupport)，直接採用套件預設支援所有 QR / 1D 條碼
       if (!scannerRef.current) {
@@ -164,24 +186,40 @@ function ScanContent() {
         aspectRatio: 1.777778
       };
 
+      const cameraConfig = camIdToUse ? { deviceId: { exact: camIdToUse } } : { facingMode: "environment" };
+
       await scannerRef.current.start(
-        { facingMode: "environment" }, 
+        cameraConfig, 
         config, 
         (decodedText) => handleScanSuccess(decodedText),
         (errorMessage) => { /* ignore normal scan errors */ }
       );
 
-      try {
-        const stream = scannerRef.current.getRunningTrack();
-        if (stream && stream.applyConstraints) {
-          await stream.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
-        }
-      } catch(e) {}
+      // 移除強制 focusMode: continuous，交由原生相機自動對焦，避免報錯或卡死
 
     } catch (err) {
       console.error(err);
       setError(t("無法開啟相機，請確認已授予權限", "Cannot access camera. Please allow permission."));
       setScanning(false);
+    }
+  };
+
+  const handleSwitchCamera = async (e) => {
+    if (e) e.preventDefault();
+    if (cameras.length <= 1) return;
+    haptic();
+    const currentIndex = cameras.findIndex(c => c.id === activeCameraId);
+    const nextIndex = (currentIndex + 1) % cameras.length;
+    const nextCameraId = cameras[nextIndex].id;
+    setActiveCameraId(nextCameraId);
+    
+    if (scanning) {
+      if (scannerRef.current) {
+        try { await scannerRef.current.stop(); } catch(e){}
+        try { scannerRef.current.clear(); } catch(e){}
+        scannerRef.current = null;
+      }
+      setTimeout(() => startCamera(scanType, nextCameraId), 100);
     }
   };
 
@@ -318,6 +356,21 @@ function ScanContent() {
                     /* Hide html5-qrcode's default UI elements we don't want */
                     #qr-reader-region__dashboard_section_csr span { display: none !important; }
                   `}</style>
+                  {cameras.length > 1 && (
+                    <button 
+                      onClick={handleSwitchCamera}
+                      style={{
+                        position: "absolute", top: "1rem", right: "1rem", zIndex: 50,
+                        background: "rgba(0,0,0,0.5)", color: "white", border: "none", 
+                        borderRadius: "50%", width: "40px", height: "40px", cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        backdropFilter: "blur(4px)"
+                      }}
+                      aria-label="Switch Camera"
+                    >
+                      <Camera size={20} />
+                    </button>
+                  )}
                   <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
                     <div style={{
                       width: scanType === 'qr' ? "65%" : "85%", 
